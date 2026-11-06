@@ -3,15 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="description" content="Redact personal information from text, entirely in your browser.">
 <title>PII Redactor</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2314171c'/%3E%3Crect x='12' y='20' width='40' height='8' rx='2' fill='%23f1f3f6'/%3E%3Crect x='12' y='36' width='26' height='8' rx='2' fill='%236ea8ff'/%3E%3C/svg%3E">
 <style>
-:root{--bg:#f6f7f9;--panel:#fff;--ink:#14171c;--muted:#5d6675;--line:#dfe3e9;--accent:#2f6fe0;--accent-ink:#fff;--hit:#ffe08a;--hit-ink:#14171c;--red:#c62f2f;color-scheme:light}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171c;--panel:#1c2027;--ink:#f1f3f6;--muted:#9aa3b2;--line:#303743;--accent:#6ea8ff;--accent-ink:#0b1220;--hit:#6b5410;--hit-ink:#fff3c4;--red:#ff6b6b;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#14171c;--panel:#1c2027;--ink:#f1f3f6;--muted:#9aa3b2;--line:#303743;--accent:#6ea8ff;--accent-ink:#0b1220;--hit:#6b5410;--hit-ink:#fff3c4;--red:#ff6b6b;color-scheme:dark}
+:root{--bg:#f6f7f9;--panel:#fff;--ink:#14171c;--muted:#5d6675;--line:#dfe3e9;--accent:#2f6fe0;--accent-ink:#fff;--hit:#ffe08a;--hit-ink:#14171c;--hit2:#c9dcff;--hit3:#d6f2d0;--red:#c62f2f;--green:#1f8a4c;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171c;--panel:#1c2027;--ink:#f1f3f6;--muted:#9aa3b2;--line:#303743;--accent:#6ea8ff;--accent-ink:#0b1220;--hit:#6b5410;--hit-ink:#fff3c4;--hit2:#1f3b6b;--hit3:#1d4a2b;--red:#ff6b6b;--green:#5fd08f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14171c;--panel:#1c2027;--ink:#f1f3f6;--muted:#9aa3b2;--line:#303743;--accent:#6ea8ff;--accent-ink:#0b1220;--hit:#6b5410;--hit-ink:#fff3c4;--hit2:#1f3b6b;--hit3:#1d4a2b;--red:#ff6b6b;--green:#5fd08f;color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 header{max-width:1200px;margin:0 auto;padding:20px 16px 8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
@@ -27,26 +26,42 @@ textarea,.out{width:100%;min-height:340px;border:1px solid var(--line);border-ra
 .out{max-height:70vh}
 textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
 mark{background:var(--hit);color:var(--hit-ink);border-radius:3px;padding:0 2px}
-.opts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+mark.s-presidio{background:var(--hit2);color:inherit}
+mark.s-gliner{background:var(--hit3);color:inherit}
+.full{grid-column:1/-1}
+.sec{font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.engines{display:grid;gap:10px;grid-template-columns:repeat(3,1fr);margin-bottom:16px}
+@media (max-width:860px){.engines{grid-template-columns:1fr}}
+.eng{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--bg);display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.eng:has(input:checked){border-color:var(--accent)}
+.eng input{margin:3px 0 0;accent-color:var(--accent);flex:none}
+.eng b{display:block;font-size:.95rem}
+.eng .d{font-size:.83rem;color:var(--muted);line-height:1.4}
+.eng .st{font-size:.8rem;margin-top:4px;font-weight:600}
+.dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:0;background:var(--hit)}
+.dot.s-presidio{background:var(--hit2)}.dot.s-gliner{background:var(--hit3)}
+.bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.ok{color:var(--green)}.warn{color:var(--red)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 10px;cursor:pointer;user-select:none;font-size:.88rem;background:var(--bg)}
 .chip input{margin:0;accent-color:var(--accent)}
 .chip .n{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.8rem}
+.optrow{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px}
 label.f{display:flex;gap:8px;align-items:center;font-size:.9rem}
 select,input[type=text]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 input[type=text]{width:100%}
 button{font:600 .88rem system-ui;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer}
 button.p{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-button:focus-visible,.chip:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+button.link{border:0;background:none;padding:0;color:var(--accent);font-weight:500;text-decoration:underline;cursor:pointer}
+button:focus-visible,.chip:focus-within,.eng:focus-within{outline:2px solid var(--accent);outline-offset:1px}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
 .muted{color:var(--muted);font-size:.85rem}
-.full{grid-column:1/-1}
 table{width:100%;border-collapse:collapse;font-size:.88rem}
 td,th{text-align:left;padding:6px 8px;border-top:1px solid var(--line);vertical-align:top;word-break:break-word}
 th{color:var(--muted);font-weight:600}
 code{font-family:ui-monospace,Menlo,Consolas,monospace}
 details summary{cursor:pointer;font-weight:600}
-.warn{color:var(--red)}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:10px;font-size:.9rem;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 .drop{outline:2px dashed var(--accent)!important}
@@ -55,21 +70,35 @@ details summary{cursor:pointer;font-weight:600}
 <body>
 <header>
   <h1>PII Redactor</h1>
-  <span class="tag">Runs in your browser. Nothing is uploaded.</span>
+  <span class="tag">Runs in your browser. Your text is never uploaded.</span>
   <span class="sp"></span>
   <button id="theme" title="Toggle theme">Theme</button>
 </header>
 <main>
-  <section class="card opts" aria-label="Options">
+  <section class="card full" aria-label="Options">
+    <p class="sec">Detection engines</p>
+    <div class="engines">
+      <label class="eng"><input type="checkbox" id="e-patterns"><div><b><span class="dot"></span>Built-in patterns</b>
+        <div class="d">Emails, phones, cards, SSNs, addresses, dates, API keys and names after Mr./Dear/Name:. Instant.</div></div></label>
+      <label class="eng"><input type="checkbox" id="e-presidio"><div><b><span class="dot s-presidio"></span>Presidio rules</b>
+        <div class="d">Microsoft Presidio's 52 English recognizers (passports, IBAN, NHS, ITIN, crypto wallets, medical IDs and more) with checksums and context words. Instant.</div></div></label>
+      <label class="eng"><input type="checkbox" id="e-gliner"><div><b><span class="dot s-gliner"></span>GLiNER2 AI model</b>
+        <div class="d">Finds names, addresses, usernames and IDs in plain prose. Runs on this device. One-time ~470 MB download, then works offline.</div>
+        <div class="st" id="g-status">Off</div><div class="bar" id="g-bar" hidden><i></i></div></div></label>
+    </div>
+    <p class="sec">What to redact</p>
     <div class="chips" id="cats"></div>
-    <label class="f">Replace with
-      <select id="mode">
-        <option value="label">Labels ([EMAIL_1])</option>
-        <option value="block">Black bars (█████)</option>
-        <option value="mask">Partial mask (keep last 4)</option>
-        <option value="generic">[REDACTED]</option>
-      </select>
-    </label>
+    <div class="optrow">
+      <label class="f">Replace with
+        <select id="mode">
+          <option value="label">Labels ([EMAIL_1])</option>
+          <option value="block">Black bars (█████)</option>
+          <option value="mask">Partial mask (keep last 4)</option>
+          <option value="generic">[REDACTED]</option>
+        </select>
+      </label>
+      <label class="f"><input type="checkbox" id="hl" checked> Highlight in preview</label>
+    </div>
   </section>
 
   <section class="card">
@@ -95,7 +124,6 @@ details summary{cursor:pointer;font-weight:600}
     <div class="row">
       <button class="p" id="copy">Copy</button>
       <button id="download">Download .txt</button>
-      <label class="f"><input type="checkbox" id="hl" checked> Highlight</label>
     </div>
   </section>
 
@@ -103,219 +131,15 @@ details summary{cursor:pointer;font-weight:600}
     <details id="mapBox">
       <summary>What was found <span class="muted" id="mapCount"></span></summary>
       <p class="muted warn">This table shows the original values. Don't share it alongside the redacted text.</p>
-      <div style="overflow:auto"><table><thead><tr><th>Replacement</th><th>Type</th><th>Original</th></tr></thead><tbody id="map"></tbody></table></div>
+      <div style="overflow:auto"><table><thead><tr><th>Replacement</th><th>Type</th><th>Original</th><th>Found by</th></tr></thead><tbody id="map"></tbody></table></div>
       <div class="row"><button id="dlMap">Download key (.csv)</button></div>
     </details>
-    <p class="muted" style="margin:12px 0 0">Detection uses patterns, so it can miss things (especially names that aren't listed above or preceded by Mr./Ms./Dr. or "Name:") and occasionally over-match. Always review before sharing.</p>
+    <p class="muted" style="margin:12px 0 0">Detection can miss things and occasionally over-match, whichever engines are on. Always review before sharing.
+      The AI model files come from <a href="https://huggingface.co/okasi/gliner2-privacy-filter-pii-multi-onnx" target="_blank" rel="noopener">Hugging Face</a> and are stored in this browser.
+      <button class="link" id="forget" hidden>Remove downloaded model</button></p>
   </section>
 </main>
 <div class="toast" id="toast"></div>
-
-<script>
-'use strict'
-const $ = (id) => document.getElementById(id)
-
-function luhn(digits) {
-  let sum = 0, alt = false
-  for (let i = digits.length - 1; i >= 0; i--) {
-    let n = +digits[i]
-    if (alt) { n *= 2; if (n > 9) n -= 9 }
-    sum += n; alt = !alt
-  }
-  return sum % 10 === 0
-}
-function ibanOk(s) {
-  const t = s.replace(/\s+/g, '').toUpperCase()
-  if (t.length < 15 || t.length > 34) return false
-  const r = (t.slice(4) + t.slice(0, 4)).replace(/[A-Z]/g, (c) => c.charCodeAt(0) - 55)
-  let m = 0
-  for (const ch of r) m = (m * 10 + +ch) % 97
-  return m === 1
-}
-
-const MONTHS = 'Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?'
-const STREET = 'Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Place|Pl|Way|Terrace|Ter|Parkway|Pkwy|Highway|Hwy|Circle|Cir|Square|Sq'
-
-// Order matters: earlier types win when matches overlap.
-const TYPES = [
-  { id: 'email', name: 'Email', label: 'EMAIL', on: true,
-    re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g },
-  { id: 'url', name: 'URL', label: 'URL', on: false,
-    re: /\bhttps?:\/\/[^\s<>"')\]]+/g },
-  { id: 'card', name: 'Card number', label: 'CARD', on: true,
-    re: /\b(?:\d[ -]?){12,18}\d\b/g, ok: (m) => { const d = m.replace(/\D/g, ''); return d.length >= 13 && d.length <= 19 && luhn(d) } },
-  { id: 'iban', name: 'IBAN', label: 'IBAN', on: true,
-    re: /\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?\b/g, ok: ibanOk },
-  { id: 'ssn', name: 'SSN', label: 'SSN', on: true,
-    re: /\b(?!000|666|9\d\d)\d{3}[- ](?!00)\d{2}[- ](?!0000)\d{4}\b/g },
-  { id: 'phone', name: 'Phone', label: 'PHONE', on: true,
-    re: /(?:(?<![\w+])\+\d{1,3}[\s.-]?)?(?<![\w+])(?:\(\d{2,4}\)|\d{2,4})[\s.-]?\d{3,4}[\s.-]?\d{3,4}(?:\s?(?:x|ext\.?)\s?\d{1,5})?\b/g,
-    ok: (m) => { const d = m.replace(/\D/g, ''); return d.length >= 10 && d.length <= 15 && !/^\d{4}-\d{2}-\d{2}$/.test(m.trim()) } },
-  { id: 'ip', name: 'IP address', label: 'IP', on: true,
-    re: /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b|\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,6}:(?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4})*)?\b/g },
-  { id: 'date', name: 'Date', label: 'DATE', on: true,
-    re: new RegExp(String.raw`\b(?:\d{1,2}[/.-]\d{1,2}[/.-](?:\d{4}|\d{2})|\d{4}-\d{2}-\d{2}|(?:${MONTHS})\.? \d{1,2}(?:st|nd|rd|th)?,? \d{4}|\d{1,2}(?:st|nd|rd|th)? (?:${MONTHS})\.?,? \d{4})\b`, 'gi') },
-  { id: 'address', name: 'Street address', label: 'ADDRESS', on: true,
-    re: new RegExp(String.raw`\b\d{1,6}(?:-\d{1,4})? (?:[NSEW]\.? )?(?:[A-Z0-9][\w'.-]*\s){0,4}(?:${STREET})\b\.?(?:,?\s(?:Apt|Apartment|Suite|Ste|Unit|Fl|Floor|#)\.?\s?[\w-]+)?`, 'g') },
-  { id: 'zip', name: 'ZIP / postcode', label: 'POSTCODE', on: true,
-    re: /\b[A-Z]{2}\s\d{5}(?:-\d{4})?\b|\b[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}\b/g },
-  { id: 'name', name: 'Names (Mr./Dr./Name:)', label: 'NAME', on: true,
-    re: /\b(?:(?:Mr|Mrs|Ms|Mx|Miss|Dr|Prof|Sir|Madam)\.?\s+(?:[A-Z][a-zA-Z'-]+)(?:\s+[A-Z][a-zA-Z'-]+){0,2}|(?<=\b(?:[Nn]ame|[Pp]atient|[Cc]lient|[Cc]ustomer|[Ee]mployee|[Cc]ontact|[Ff]rom|[Tt]o|[Dd]ear|[Ss]igned|[Rr]egards,?)\s*[:,]?\s+)[A-Z][a-zA-Z'-]+(?:\s+[A-Z]\.)?(?:\s+[A-Z][a-zA-Z'-]+){1,2})/g },
-  { id: 'secret', name: 'API keys / tokens', label: 'SECRET', on: true,
-    re: /\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{10,}\b|\bAKIA[0-9A-Z]{16}\b|\bgh[pousr]_[A-Za-z0-9]{30,}\b|\bxox[abpr]-[A-Za-z0-9-]{10,}\b|\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b|\bsk-[A-Za-z0-9_-]{20,}\b/g },
-  { id: 'custom', name: 'Your list', label: 'TERM', on: true, re: null },
-]
-
-const state = { on: {}, mode: 'label' }
-try { Object.assign(state, JSON.parse(localStorage.getItem('pii-opts') || '{}')) } catch {}
-for (const t of TYPES) if (!(t.id in state.on)) state.on[t.id] = t.on
-
-function splitList(s) { return s.split(/[,\n]/).map((x) => x.trim()).filter(Boolean) }
-function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
-function escHtml(s) { return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]) }
-
-function findAll(text) {
-  const custom = splitList($('custom').value).sort((a, b) => b.length - a.length)
-  const allow = new Set(splitList($('allow').value).map((s) => s.toLowerCase()))
-  const hits = []
-  TYPES.forEach((t, prio) => {
-    if (!state.on[t.id]) return
-    let re = t.re
-    if (t.id === 'custom') {
-      if (!custom.length) return
-      re = new RegExp('(?<![\\w])(?:' + custom.map(escRe).join('|') + ')(?![\\w])', 'gi')
-    }
-    re.lastIndex = 0
-    for (const m of text.matchAll(re)) {
-      let s = m[0], start = m.index
-      const trimmed = s.replace(/[\s.,;:]+$/, '')
-      if (t.id !== 'address') s = trimmed
-      if (!s || (t.ok && !t.ok(s)) || allow.has(s.toLowerCase())) continue
-      hits.push({ start, end: start + s.length, text: s, type: t, prio: t.id === 'custom' ? -1 : prio })
-    }
-  })
-  // Resolve overlaps: custom list first, then earlier types, then longer matches.
-  hits.sort((a, b) => a.prio - b.prio || (b.end - b.start) - (a.end - a.start) || a.start - b.start)
-  const taken = []
-  const keep = []
-  for (const h of hits) {
-    if (taken.some(([s, e]) => h.start < e && h.end > s)) continue
-    taken.push([h.start, h.end]); keep.push(h)
-  }
-  return keep.sort((a, b) => a.start - b.start)
-}
-
-function replacement(h, ids) {
-  switch (state.mode) {
-    case 'block': return '█'.repeat(Math.min(Math.max(h.text.length, 4), 24))
-    case 'generic': return '[REDACTED]'
-    case 'mask': {
-      const keepN = ['card', 'phone', 'ssn', 'iban'].includes(h.type.id) ? 4 : 0
-      let seen = 0
-      const chars = [...h.text]
-      for (let i = chars.length - 1; i >= 0; i--) {
-        if (/[A-Za-z0-9]/.test(chars[i])) chars[i] = seen++ < keepN ? chars[i] : '*'
-      }
-      return chars.join('')
-    }
-    default: {
-      const key = h.type.id + '\u0000' + h.text.toLowerCase().replace(/\s+/g, ' ')
-      if (!ids.map.has(key)) {
-        ids.n[h.type.label] = (ids.n[h.type.label] || 0) + 1
-        ids.map.set(key, `[${h.type.label}_${ids.n[h.type.label]}]`)
-      }
-      return ids.map.get(key)
-    }
-  }
-}
-
-let last = { plain: '', rows: [] }
-function run() {
-  const text = $('input').value
-  const hits = findAll(text)
-  const ids = { n: {}, map: new Map() }
-  const counts = {}
-  let plain = '', html = '', pos = 0
-  const rows = [], seenRow = new Set()
-  for (const h of hits) {
-    const rep = replacement(h, ids)
-    plain += text.slice(pos, h.start) + rep
-    html += escHtml(text.slice(pos, h.start)) + `<mark title="${h.type.name}">${escHtml(rep)}</mark>`
-    pos = h.end
-    counts[h.type.id] = (counts[h.type.id] || 0) + 1
-    const rk = rep + '\u0000' + h.text
-    if (!seenRow.has(rk)) { seenRow.add(rk); rows.push([rep, h.type.name, h.text]) }
-  }
-  plain += text.slice(pos); html += escHtml(text.slice(pos))
-  last = { plain, rows }
-  const out = $('output')
-  if (!text) out.innerHTML = '<span class="muted">The redacted text will appear here.</span>'
-  else if ($('hl').checked) out.innerHTML = html
-  else out.textContent = plain
-  for (const t of TYPES) { const el = document.querySelector(`[data-n="${t.id}"]`); if (el) el.textContent = counts[t.id] || '' }
-  $('total').textContent = text ? `${hits.length} redaction${hits.length === 1 ? '' : 's'}` : ''
-  $('inCount').textContent = text ? `${text.length.toLocaleString()} chars` : ''
-  $('mapCount').textContent = rows.length ? `(${rows.length})` : ''
-  $('map').innerHTML = rows.map((r) => `<tr><td><code>${escHtml(r[0])}</code></td><td>${escHtml(r[1])}</td><td><code>${escHtml(r[2])}</code></td></tr>`).join('') || '<tr><td colspan="3" class="muted">Nothing found yet.</td></tr>'
-}
-
-function save() { try { localStorage.setItem('pii-opts', JSON.stringify({ on: state.on, mode: state.mode })) } catch {} }
-function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 1600) }
-function download(name, content, type) {
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob([content], { type }))
-  a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000)
-}
-function readFile(f) {
-  if (!f) return
-  if (f.size > 5e6) return toast('File is larger than 5 MB')
-  f.text().then((t) => { $('input').value = t; run() })
-}
-
-$('cats').innerHTML = TYPES.map((t) => `<label class="chip"><input type="checkbox" data-id="${t.id}" ${state.on[t.id] ? 'checked' : ''}>${t.name} <span class="n" data-n="${t.id}"></span></label>`).join('')
-$('cats').addEventListener('change', (e) => { state.on[e.target.dataset.id] = e.target.checked; save(); run() })
-$('mode').value = state.mode
-$('mode').addEventListener('change', (e) => { state.mode = e.target.value; save(); run() })
-for (const id of ['input', 'custom', 'allow']) $(id).addEventListener('input', run)
-$('hl').addEventListener('change', run)
-$('copy').addEventListener('click', async () => {
-  try { await navigator.clipboard.writeText(last.plain); toast('Copied redacted text') }
-  catch { const r = document.createRange(); r.selectNodeContents($('output')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Press Ctrl+C to copy') }
-})
-$('download').addEventListener('click', () => download('redacted.txt', last.plain, 'text/plain'))
-$('dlMap').addEventListener('click', () => {
-  const csv = 'replacement,type,original\n' + last.rows.map((r) => r.map((c) => '"' + c.replace(/"/g, '""') + '"').join(',')).join('\n')
-  download('redaction-key.csv', csv, 'text/csv')
-})
-$('clear').addEventListener('click', () => { $('input').value = ''; run(); $('input').focus() })
-$('load').addEventListener('click', () => $('file').click())
-$('file').addEventListener('change', (e) => { readFile(e.target.files[0]); e.target.value = '' })
-const ta = $('input')
-ta.addEventListener('dragover', (e) => { e.preventDefault(); ta.classList.add('drop') })
-ta.addEventListener('dragleave', () => ta.classList.remove('drop'))
-ta.addEventListener('drop', (e) => { if (e.dataTransfer.files.length) { e.preventDefault(); ta.classList.remove('drop'); readFile(e.dataTransfer.files[0]) } })
-$('sample').addEventListener('click', () => {
-  ta.value = `Dear Ms. Priya Raman,
-
-Thanks for calling on March 3, 2026. Your account (priya.raman@example.com, phone (917) 555-0142) was updated.
-Shipping to 221 W 44th Street, Apt 5B, New York, NY 10036.
-Card on file: 4111 1111 1111 1111. SSN on record: 123-45-6789. DOB 07/14/1988.
-We logged a login from 203.0.113.42 and refunded to IBAN GB82 WEST 1234 5698 7654 32.
-A second email from priya.raman@example.com was merged.
-
-Regards, Daniel Okafor
-+44 20 7946 0958`
-  run()
-})
-
-const root = document.documentElement
-try { const th = localStorage.getItem('pii-theme'); if (th) root.dataset.theme = th } catch {}
-$('theme').addEventListener('click', () => {
-  const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
-  root.dataset.theme = dark ? 'light' : 'dark'
-  try { localStorage.setItem('pii-theme', root.dataset.theme) } catch {}
-})
-run()
-</script>
+<script type="module" src="./app.js"></script>
 </body>
 </html>
