@@ -83,7 +83,9 @@ function runPatterns(text) {
 // ---------- rules 2: Presidio ----------
 const PRESIDIO_CAT = { EMAIL_ADDRESS: 'email', URL: 'url', CREDIT_CARD: 'card', IBAN_CODE: 'iban', US_SSN: 'ssn', IP_ADDRESS: 'ip', MAC_ADDRESS: 'ip', DATE_TIME: 'date', UK_POSTCODE: 'zip', CA_POSTAL_CODE: 'zip' }
 function runPresidio(text) {
-  return presidio(text).map((r) => {
+  // Presidio's NHS pattern also takes 3-3-4 with dashes, which is how US phones are written
+  // ("212-555-0199" came out as [UK_NHS_1]). NHS numbers are written with spaces, so leave dashed ones to the phone rule.
+  return presidio(text).filter((r) => !(r.entity === 'UK_NHS' && text.slice(r.start, r.end).includes('-'))).map((r) => {
     const cat = PRESIDIO_CAT[r.entity] || 'ids'
     return { start: r.start, end: r.end, cat, source: 'presidio', score: r.score, label: cat === 'ids' ? r.entity : undefined, detail: r.entity }
   })
