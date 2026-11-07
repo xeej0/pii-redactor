@@ -61,7 +61,7 @@ const PATTERNS = [
   { cat: 'zip', re: /\b[A-Z]{2}\s\d{5}(?:-\d{4})?\b|\b[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}\b/g },
   { cat: 'zip', re: new RegExp(String.raw`(?<=\b(?:${STATES}),?\s)\d{5}(?:-\d{4})?\b`, 'g') },
   { cat: 'org', re: new RegExp(String.raw`\b(?:(?!(?:${ROLE}|Esq|Esquire)\b)[A-Z][\w'’.-]*,?\s+(?:&\s+)?){1,6}(?:${ORG_SUFFIX})(?![\w])`, 'g') },
-  { cat: 'name', re: new RegExp(String.raw`\b(?:(?:Mr|Mrs|Ms|Mx|Miss|Dr|Prof|Sir|Madam|Hon|Judge|Justice)\.?\s+[A-Z][a-zA-Z'-]+(?:\s+[A-Z]\.)?(?:\s+[A-Z][a-zA-Z'-]+){0,2}|(?!(?:${ROLE})\b)[A-Z][a-zA-Z'-]+(?:\s+[A-Z]\.)?(?:\s+[A-Z][a-zA-Z'-]+){1,2}(?=,?\s+(?:Esq|M\.?D|Ph\.?D|J\.?D)\b)|(?<=\b(?:[Nn]ame|[Pp]atient|[Cc]lient|[Cc]ustomer|[Ee]mployee|[Cc]ontact|[Dd]ear|[Ss]igned|[Rr]egards,?|[Ss]incerely,?)\s*[:,]?\s+)(?!(?:${ROLE})\b)[A-Z][a-zA-Z'-]+(?:\s+[A-Z]\.)?(?:\s+[A-Z][a-zA-Z'-]+){1,2})`, 'g') },
+  { cat: 'name', re: new RegExp(String.raw`(?<![\p{L}\p{N}_])(?:(?:Mr|Mrs|Ms|Mx|Miss|Dr|Prof|Sir|Madam|Hon|Judge|Justice)\.?\s+\p{Lu}[\p{L}\p{M}'-]+(?:\s+\p{Lu}\.)?(?:\s+\p{Lu}[\p{L}\p{M}'-]+){0,2}|(?!(?:${ROLE})\b)\p{Lu}[\p{L}\p{M}'-]+(?:\s+\p{Lu}\.)?(?:\s+\p{Lu}[\p{L}\p{M}'-]+){1,2}(?=,?\s+(?:Esq|M\.?D|Ph\.?D|J\.?D)\b)|(?<=\b(?:[Nn]ame|[Pp]atient|[Cc]lient|[Cc]ustomer|[Ee]mployee|[Cc]ontact|[Dd]ear|[Ss]igned|[Rr]egards,?|[Ss]incerely,?)\s*[:,]?\s+)(?!(?:${ROLE})\b)\p{Lu}[\p{L}\p{M}'-]+(?:\s+\p{Lu}\.)?(?:\s+\p{Lu}[\p{L}\p{M}'-]+){1,2})`, 'gu') },
   { cat: 'secret', re: /\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{10,}\b|\bAKIA[0-9A-Z]{16}\b|\bgh[pousr]_[A-Za-z0-9]{30,}\b|\bxox[abpr]-[A-Za-z0-9-]{10,}\b|\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b|\bsk-[A-Za-z0-9_-]{20,}\b/g },
 ]
 function runPatterns(text) {

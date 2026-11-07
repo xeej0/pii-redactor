@@ -50,6 +50,11 @@ test('emails with accented or non-Latin local parts are redacted whole', async (
   assert.ok(out.endsWith('.'), out)
 })
 
+test('names with accented letters are redacted whole by the rules', async () => {
+  const out = await redact('Seen by Ms. Zoë Ångström and Émile Zola, Esq. for patient: José Müller.')
+  for (const s of ['Zo', 'Ångström', 'Émile', 'Zola', 'José', 'Müller']) assert.ok(!out.includes(s), out)
+})
+
 test('basic rules still work', async () => {
   const out = await redact('SSN 219-09-9999, email jane@example.com, card 4111 1111 1111 1111, call (914) 555-0142.')
   for (const s of ['219-09-9999', 'jane@example.com', '4111', '555-0142']) assert.ok(!out.includes(s), out)
