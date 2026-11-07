@@ -77,3 +77,17 @@ test('cloud spans (Python code point offsets) land on the right text after an em
   const out = await redact(text)
   assert.equal(out, 'Hi 😀😀 from [NAME_1] today')
 })
+
+test('title + name stops at a possessive and never absorbs an all-caps word', async () => {
+  const out = await redact("Ms. Raman's SSN on file. Dr. Lee DOB unknown. The SSN and MRN fields.")
+  assert.ok(out.includes("'s SSN on file"), out)
+  assert.ok(out.includes(' DOB unknown'), out)
+  assert.ok(out.includes('The SSN and MRN fields.'), out)
+  for (const s of ['Raman', 'Lee']) assert.ok(!out.includes(s), out)
+})
+
+test('title + full name and accented names still redact whole', async () => {
+  const out = await redact("Ms. Priya Raman signed. Dr. Zoë Ångström's chart. Mr. O'Brien called.")
+  for (const s of ['Priya', 'Raman', 'Zo', 'Ångström', 'Brien']) assert.ok(!out.includes(s), out)
+  assert.ok(out.includes("'s chart"), out)
+})
