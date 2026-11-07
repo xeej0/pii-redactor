@@ -51,7 +51,7 @@ const PATTERNS = [
   { cat: 'email', re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g },
   { cat: 'url', re: /\bhttps?:\/\/[^\s<>"')\]]+/g },
   { cat: 'card', re: /\b(?:\d[ -]?){12,18}\d\b/g, ok: (m) => { const d = m.replace(/\D/g, ''); return d.length >= 13 && d.length <= 19 && luhn(d) } },
-  { cat: 'iban', re: /\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?\b/g, ok: ibanOk },
+  { cat: 'iban', re: /\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?\b/gi, ok: ibanOk },
   { cat: 'ssn', re: /\b(?!000|666|9\d\d)\d{3}[- ](?!00)\d{2}[- ](?!0000)\d{4}\b/g },
   { cat: 'phone', re: /(?:(?<![\w+])\+\d{1,3}[\s.-]?)?(?<![\w+])(?:\(\d{2,4}\)|\d{2,4})[\s.-]?\d{3,4}[\s.-]?\d{3,4}(?:\s?(?:x|ext\.?)\s?\d{1,5})?\b/g,
     ok: (m) => { const d = m.replace(/\D/g, ''); return d.length >= 10 && d.length <= 15 && !/^\d{4}-\d{2}-\d{2}$/.test(m.trim()) } },
@@ -111,7 +111,7 @@ function glRender() {
     case 'scanning': return glStatus('AI scanning…', '', gl.progress ?? 0)
     case 'ready': return glStatus(on ? `<span class="ok">Ready</span>${gl.ms ? ` · last scan ${(gl.ms / 1000).toFixed(1)} s` : ''}` : 'Off (model downloaded)')
     case 'notdownloaded': return glStatus(on ? '<span class="warn">Not downloaded yet.</span> Until then only the rules run.' : 'Off')
-    case 'error': return glStatus(gl.error, 'warn')
+    case 'error': return glStatus(escHtml(gl.error), 'warn')
     default: return glStatus(on ? 'Checking…' : 'Off')
   }
 }
@@ -234,7 +234,13 @@ function cloudHits(text) {
   const r = cloud.result
   if (!state.engines.cloud || !r) return []
   const mk = (start, end, sp) => ({ start, end, cat: CAT[sp.cat] ? sp.cat : 'ids', source: sp.source, score: sp.score ?? 0.8, tier: 2 })
-  if (r.text === text) return r.spans.filter((sp) => sp.end <= text.length).map((sp) => mk(sp.start, sp.end, sp))
+  if (r.text === text) {
+    // The server is Python, whose offsets count code points; JS strings count UTF-16 units
+    // (an emoji is 1 vs 2), so map them or every span after an emoji lands in the wrong place.
+    const at = [0]
+    for (const ch of text) at.push(at[at.length - 1] + ch.length)
+    return r.spans.filter((sp) => sp.start < sp.end && sp.end < at.length).map((sp) => mk(at[sp.start], at[sp.end], sp))
+  }
   const out = [], seen = new Set()
   for (const sp of r.spans) {
     const k = sp.cat + '\u0000' + sp.text
@@ -325,7 +331,9 @@ function propagate(text, hits) {
 
 // Overlaps: your list first, then rules (higher score, then longer), then the AI, then repeats.
 // A later match of the same type that overlaps is merged into the span and credited.
-function merge(hits) {
+// Any part of a later match that no earlier span covers is still redacted on its own,
+// so "Acme" on your list can't leave "Widgets, Inc." of "Acme Widgets, Inc." showing.
+function merge(hits, text) {
   hits.sort((a, b) => a.tier - b.tier || b.score - a.score || (b.end - b.start) - (a.end - a.start))
   const acc = []
   for (const h of hits) {
@@ -335,6 +343,18 @@ function merge(hits) {
     if (ov.length === 1 && ov[0].cat === h.cat) {
       const a = ov[0], s = Math.min(a.start, h.start), e = Math.max(a.end, h.end)
       if (!acc.some((o) => o !== a && s < o.end && e > o.start)) { a.start = s; a.end = e }
+    }
+    const gaps = []
+    let pos = h.start
+    for (const a of acc.filter((o) => h.start < o.end && h.end > o.start).sort((x, y) => x.start - y.start)) {
+      if (a.start > pos) gaps.push([pos, a.start])
+      pos = Math.max(pos, a.end)
+    }
+    if (pos < h.end) gaps.push([pos, h.end])
+    for (let [s, e] of gaps) {
+      while (s < e && /[\s,;:]/.test(text[s])) s++
+      while (e > s && /[\s,;:]/.test(text[e - 1])) e--
+      if (/[\p{L}\p{N}]/u.test(text.slice(s, e))) acc.push({ ...h, start: s, end: e, sources: new Set([h.source]) })
     }
   }
   return acc.sort((a, b) => a.start - b.start)
@@ -364,7 +384,7 @@ function replacement(h, text, ids) {
 let last = { plain: '', rows: [] }
 function run() {
   const text = $('input').value
-  const hits = merge(collect(text))
+  const hits = merge(collect(text), text)
   const ids = { n: {}, map: new Map() }
   const counts = {}
   let plain = '', html = '', pos = 0
