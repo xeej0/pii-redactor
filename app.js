@@ -505,13 +505,19 @@ $('input').addEventListener('input', onInput)
 for (const id of ['custom', 'allow']) $(id).addEventListener('input', run)
 $('hl').addEventListener('change', run)
 $('copy').addEventListener('click', async () => {
+  if (!$('input').value) return toast('Nothing to copy yet. Paste some text first.')
   const p = pending()
   if (p && !confirm(p + '\n\nCopy the current result anyway?')) return
   try { await navigator.clipboard.writeText(last.plain); toast('Copied redacted text') }
   catch { const r = document.createRange(); r.selectNodeContents($('output')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Press Ctrl+C to copy') }
 })
-$('download').addEventListener('click', () => { const p = pending(); if (!p || confirm(p + '\n\nDownload the current result anyway?')) download('redacted.txt', last.plain, 'text/plain') })
+$('download').addEventListener('click', () => {
+  if (!$('input').value) return toast('Nothing to download yet. Paste some text first.')
+  const p = pending()
+  if (!p || confirm(p + '\n\nDownload the current result anyway?')) download('redacted.txt', last.plain, 'text/plain')
+})
 $('dlMap').addEventListener('click', () => {
+  if (!last.rows.length) return toast('Nothing has been redacted yet')
   const csv = 'replacement,type,original,found_by\n' + last.rows.map((r) => r.map((c) => '"' + c.replace(/"/g, '""') + '"').join(',')).join('\n')
   download('redaction-key.csv', csv, 'text/csv')
 })
