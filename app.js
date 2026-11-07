@@ -48,7 +48,7 @@ const STATES = 'Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|
 const ORG_SUFFIX = String.raw`LLP|L\.L\.P\.|LLC|L\.L\.C\.|PLLC|P\.L\.L\.C\.|P\.C\.|P\.A\.|Inc\.?|Incorporated|Corp\.?|Corporation|Co\.|Ltd\.?|Limited|GmbH|AG|S\.A\.|N\.V\.|B\.V\.|S\.r\.l\.|LP|L\.P\.`
 const ROLE = 'Defendants?|Plaintiffs?|Respondents?|Petitioners?|Appellants?|Appellees?|Claimants?|The|By|To|From|And|Of|For|With|Attorneys?|Counsel|Dated|Re|Dear|Between'
 const PATTERNS = [
-  { cat: 'email', re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g },
+  { cat: 'email', re: /(?<![\p{L}\p{N}._%+-])[\p{L}\p{M}\p{N}._%+-]+@[\p{L}\p{M}\p{N}.-]+\.\p{L}{2,}(?![\p{L}\p{N}])/gu },
   { cat: 'url', re: /\bhttps?:\/\/[^\s<>"')\]]+/g },
   { cat: 'card', re: /\b(?:\d[ -]?){12,18}\d\b/g, ok: (m) => { const d = m.replace(/\D/g, ''); return d.length >= 13 && d.length <= 19 && luhn(d) } },
   { cat: 'iban', re: /\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?\b/gi, ok: ibanOk },

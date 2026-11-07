@@ -44,6 +44,12 @@ test('lowercase IBAN is redacted', async () => {
   assert.ok(!/0130|3704/.test(out), out)
 })
 
+test('emails with accented or non-Latin local parts are redacted whole', async () => {
+  const out = await redact('Write to josé.garcía@example.com or أحمد@example.com, or bob@example.co.uk.')
+  for (const s of ['jos', 'garc', 'أحمد', 'example', 'bob']) assert.ok(!out.includes(s), out)
+  assert.ok(out.endsWith('.'), out)
+})
+
 test('basic rules still work', async () => {
   const out = await redact('SSN 219-09-9999, email jane@example.com, card 4111 1111 1111 1111, call (914) 555-0142.')
   for (const s of ['219-09-9999', 'jane@example.com', '4111', '555-0142']) assert.ok(!out.includes(s), out)
