@@ -102,3 +102,30 @@ test('a full "First Last" name is redacted whole when its surname was found else
   for (const s of ['Priya', 'Raman', 'Sean', 'Brien']) assert.ok(!out.includes(s), out)
   assert.ok(out.includes('Yesterday ['), out)
 })
+
+const { csvCell, toCSV } = await import('../csv.js')
+
+test('CSV cells that look like formulas get a leading quote, plain numbers do not', () => {
+  assert.equal(csvCell('=SUM(A1)'), `"'=SUM(A1)"`)
+  assert.equal(csvCell('@cmd'), `"'@cmd"`)
+  assert.equal(csvCell('+44 20 7946 0958'), `"'+44 20 7946 0958"`)
+  assert.equal(csvCell('\tx'), `"'\tx"`)
+  assert.equal(csvCell('\rx'), `"'\rx"`)
+  assert.equal(csvCell('-2+3'), `"'-2+3"`)
+  assert.equal(csvCell('-500'), '"-500"')
+  assert.equal(csvCell('1234.50'), '"1234.50"')
+  assert.equal(csvCell('Jane Doe'), '"Jane Doe"')
+  assert.equal(csvCell('=HYPERLINK("http://x","a,b")'), `"'=HYPERLINK(""http://x"",""a,b"")"`)
+  assert.equal(toCSV([['a,b', 'say "hi"', 'plain'], ['x', '', '1']]), '"a,b","say ""hi""","plain"\n"x","","1"')
+})
+
+test('redaction-key.csv download neutralizes a formula in the original text', async () => {
+  await redact('Ask for =cmd|"/c calc"!A1 then.', { custom: '=cmd|"/c calc"!A1' })
+  let content
+  const [B, U] = [globalThis.Blob, URL.createObjectURL]
+  globalThis.Blob = class { constructor(parts) { content = parts.join('') } }
+  URL.createObjectURL = () => 'blob:x'
+  try { el('dlMap').fire('click') } finally { globalThis.Blob = B; URL.createObjectURL = U }
+  assert.match(content, /^replacement,type,original,found_by\n/)
+  assert.ok(content.includes(`"'=cmd|""/c calc""!A1"`), content)
+})

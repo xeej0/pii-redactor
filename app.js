@@ -1,5 +1,6 @@
 import { analyze as presidio } from './presidio.js'
 import COMMON from './common-words.js'
+import { toCSV } from './csv.js'
 
 const $ = (id) => document.getElementById(id)
 
@@ -538,7 +539,7 @@ $('download').addEventListener('click', () => {
 })
 $('dlMap').addEventListener('click', () => {
   if (!last.rows.length) return toast('Nothing has been redacted yet')
-  const csv = 'replacement,type,original,found_by\n' + last.rows.map((r) => r.map((c) => '"' + c.replace(/"/g, '""') + '"').join(',')).join('\n')
+  const csv = 'replacement,type,original,found_by\n' + toCSV(last.rows)
   download('redaction-key.csv', csv, 'text/csv')
 })
 $('clear').addEventListener('click', () => { $('input').value = ''; onInput(); $('input').focus() })
