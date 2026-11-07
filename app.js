@@ -335,18 +335,23 @@ function propagate(text, hits) {
 // so "Acme" on your list can't leave "Widgets, Inc." of "Acme Widgets, Inc." showing.
 function merge(hits, text) {
   hits.sort((a, b) => a.tier - b.tier || b.score - a.score || (b.end - b.start) - (a.end - a.start))
+  // acc never holds overlapping spans, so it is kept sorted by position and searched by
+  // bisection: scanning all of it for every hit froze the page for 30 s on a 1 MB paste.
   const acc = []
+  const after = (pos) => { let lo = 0, hi = acc.length; while (lo < hi) { const m = (lo + hi) >> 1; if (acc[m].end > pos) hi = m; else lo = m + 1 } return lo }
+  const within = (s, e) => { const out = []; for (let i = after(s); i < acc.length && acc[i].start < e; i++) out.push(acc[i]); return out }
+  const add = (span) => acc.splice(after(span.start), 0, span)
   for (const h of hits) {
-    const ov = acc.filter((a) => h.start < a.end && h.end > a.start)
-    if (!ov.length) { acc.push({ ...h, sources: new Set([h.source]) }); continue }
+    const ov = within(h.start, h.end)
+    if (!ov.length) { add({ ...h, sources: new Set([h.source]) }); continue }
     for (const a of ov) if (a.cat === h.cat) a.sources.add(h.source)
     if (ov.length === 1 && ov[0].cat === h.cat) {
       const a = ov[0], s = Math.min(a.start, h.start), e = Math.max(a.end, h.end)
-      if (!acc.some((o) => o !== a && s < o.end && e > o.start)) { a.start = s; a.end = e }
+      if (within(s, e).length === 1) { a.start = s; a.end = e }
     }
     const gaps = []
     let pos = h.start
-    for (const a of acc.filter((o) => h.start < o.end && h.end > o.start).sort((x, y) => x.start - y.start)) {
+    for (const a of within(h.start, h.end)) {
       if (a.start > pos) gaps.push([pos, a.start])
       pos = Math.max(pos, a.end)
     }
@@ -354,10 +359,10 @@ function merge(hits, text) {
     for (let [s, e] of gaps) {
       while (s < e && /[\s,;:]/.test(text[s])) s++
       while (e > s && /[\s,;:]/.test(text[e - 1])) e--
-      if (/[\p{L}\p{N}]/u.test(text.slice(s, e))) acc.push({ ...h, start: s, end: e, sources: new Set([h.source]) })
+      if (/[\p{L}\p{N}]/u.test(text.slice(s, e))) add({ ...h, start: s, end: e, sources: new Set([h.source]) })
     }
   }
-  return acc.sort((a, b) => a.start - b.start)
+  return acc
 }
 
 function replacement(h, text, ids) {
