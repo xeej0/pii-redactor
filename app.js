@@ -5,27 +5,27 @@ const $ = (id) => document.getElementById(id)
 
 // ---------- categories, and the AI labels asked for each ----------
 const CATS = [
-  { id: 'name', name: 'Names', label: 'NAME', ai: ['person'] },
-  { id: 'org', name: 'Companies & organizations', label: 'ORG', ai: ['organization', 'company', 'law firm'] },
-  { id: 'address', name: 'Street addresses', label: 'ADDRESS', ai: ['street_address'] },
-  { id: 'place', name: 'Cities, states & countries', label: 'PLACE', ai: ['city', 'state_or_region', 'country'] },
-  { id: 'zip', name: 'ZIP / postcodes', label: 'POSTCODE', ai: ['postal_code'] },
-  { id: 'phone', name: 'Phones & faxes', label: 'PHONE', ai: ['phone_number'] },
-  { id: 'email', name: 'Emails', label: 'EMAIL', ai: ['email'] },
-  { id: 'date', name: 'Dates', label: 'DATE', ai: ['date', 'date_of_birth'] },
-  { id: 'ssn', name: 'SSNs & national IDs', label: 'SSN', ai: ['national_id_number'] },
-  { id: 'ids', name: 'Other IDs & account numbers', label: 'ID', ai: ['government_id', 'passport_number', 'drivers_license_number', 'tax_id', 'account_number', 'bank_account'] },
-  { id: 'card', name: 'Card numbers', label: 'CARD', ai: ['card_number'] },
-  { id: 'iban', name: 'IBANs', label: 'IBAN', ai: ['iban'] },
-  { id: 'username', name: 'Usernames', label: 'USERNAME', ai: ['username'] },
-  { id: 'secret', name: 'Passwords & API keys', label: 'SECRET', ai: ['password', 'api_key'] },
-  { id: 'ip', name: 'IP / MAC addresses', label: 'IP', ai: ['ip_address'] },
-  { id: 'url', name: 'URLs', label: 'URL', ai: ['url'], off: true },
-  { id: 'custom', name: 'Your list', label: 'TERM', ai: [] },
+  { id: 'name', group: 'People & companies', name: 'Names', label: 'NAME', ai: ['person'] },
+  { id: 'org', group: 'People & companies', name: 'Companies & organizations', label: 'ORG', ai: ['organization', 'company', 'law firm'] },
+  { id: 'address', group: 'Places', name: 'Street addresses', label: 'ADDRESS', ai: ['street_address'] },
+  { id: 'place', group: 'Places', name: 'Cities, states & countries', label: 'PLACE', ai: ['city', 'state_or_region', 'country'] },
+  { id: 'zip', group: 'Places', name: 'ZIP / postcodes', label: 'POSTCODE', ai: ['postal_code'] },
+  { id: 'phone', group: 'Contact', name: 'Phones & faxes', label: 'PHONE', ai: ['phone_number'] },
+  { id: 'email', group: 'Contact', name: 'Emails', label: 'EMAIL', ai: ['email'] },
+  { id: 'date', group: 'Dates', name: 'Dates', label: 'DATE', ai: ['date', 'date_of_birth'] },
+  { id: 'ssn', group: 'Numbers & IDs', name: 'SSNs & national IDs', label: 'SSN', ai: ['national_id_number'] },
+  { id: 'ids', group: 'Numbers & IDs', name: 'Other IDs & account numbers', label: 'ID', ai: ['government_id', 'passport_number', 'drivers_license_number', 'tax_id', 'account_number', 'bank_account'] },
+  { id: 'card', group: 'Numbers & IDs', name: 'Card numbers', label: 'CARD', ai: ['card_number'] },
+  { id: 'iban', group: 'Numbers & IDs', name: 'IBANs', label: 'IBAN', ai: ['iban'] },
+  { id: 'username', group: 'Online & secrets', name: 'Usernames', label: 'USERNAME', ai: ['username'] },
+  { id: 'secret', group: 'Online & secrets', name: 'Passwords & API keys', label: 'SECRET', ai: ['password', 'api_key'] },
+  { id: 'ip', group: 'Online & secrets', name: 'IP / MAC addresses', label: 'IP', ai: ['ip_address'] },
+  { id: 'url', group: 'Contact', name: 'URLs', label: 'URL', ai: ['url'], off: true },
+  { id: 'custom', group: 'Your lists', name: 'Your list', label: 'TERM', ai: [] },
 ]
 const CAT = Object.fromEntries(CATS.map((c) => [c.id, c]))
 const AI_CAT = Object.fromEntries(CATS.flatMap((c) => c.ai.map((l) => [l, c.id])))
-const SOURCE_NAME = { patterns: 'Rules', presidio: 'Rules (Presidio)', gliner: 'AI', custom: 'Your list', repeat: 'Repeat of a found name' }
+const SOURCE_NAME = { patterns: 'Rules', presidio: 'Rules (Presidio)', gliner: 'AI', 'cloud-gliner': 'Cloud AI', 'cloud-llm': 'Cloud LLM reviewer', custom: 'Your list', repeat: 'Repeat of a found name' }
 const SENSITIVITY = { balanced: 0.5, high: 0.35, max: 0.2 }
 
 // ---------- rules 1: built-in patterns ----------
@@ -101,6 +101,7 @@ function glStatus(html, cls = '', pct = null) {
   if (pct !== null) $('g-bar').firstElementChild.style.width = Math.round(pct * 100) + '%'
 }
 function glRender() {
+  updateNote()
   const on = state.engines.gliner
   const mb = (n) => Math.round(n / 1e6)
   $('g-download').hidden = !(on && gl.state === 'notdownloaded')
@@ -152,8 +153,122 @@ function scheduleScan(delay = 600) {
   }, delay)
 }
 
+// ---------- cloud GPU: optional, on the user's own Modal endpoint (see cloud/) ----------
+// Never automatic: a scan is sent only when the user presses "Cloud scan" and confirms.
+const CLOUD_KEY = 'pii-cloud-v1'
+const cloud = { url: '', token: '', ack: false, remember: true, busy: false, result: null, ctrl: null, t0: 0, tick: 0, error: '', msg: '', confirmed: false }
+try {
+  const c = JSON.parse(localStorage.getItem(CLOUD_KEY) || sessionStorage.getItem(CLOUD_KEY) || '{}')
+  for (const k of ['url', 'token', 'ack', 'remember']) if (k in c) cloud[k] = c[k]
+} catch {}
+function cloudSave() {
+  const data = JSON.stringify({ url: cloud.url, token: cloud.token, ack: cloud.ack, remember: cloud.remember })
+  try {
+    if (cloud.remember) { localStorage.setItem(CLOUD_KEY, data); sessionStorage.removeItem(CLOUD_KEY) }
+    else { sessionStorage.setItem(CLOUD_KEY, data); localStorage.removeItem(CLOUD_KEY) }
+  } catch {}
+}
+const cloudBase = () => {
+  try { const u = new URL(cloud.url.trim()); return u.protocol === 'https:' && u.hostname.endsWith('.modal.run') ? u.origin : null } catch { return null }
+}
+const cloudCats = () => CATS.filter((c) => state.on[c.id] && c.id !== 'custom').map((c) => c.id)
+function cloudProblem() {
+  if (!cloudBase()) return 'Enter your endpoint URL (https://…modal.run)'
+  if (cloud.token.trim().length < 24) return 'Enter your access token'
+  if (!cloud.ack) return 'Tick the box to confirm you understand the cost and privacy trade-off'
+  return ''
+}
+async function cloudFetch(path, body, signal) {
+  let res
+  try {
+    res = await fetch(cloudBase() + path, {
+      method: 'POST', body: JSON.stringify(body || {}), signal, credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store',
+      headers: { Authorization: 'Bearer ' + cloud.token.trim(), 'Content-Type': 'application/json' },
+    })
+  } catch (e) {
+    if (signal?.aborted) throw e
+    throw new Error('Could not reach the server. Check the URL, and that the app is deployed.')
+  }
+  let data = null
+  try { data = await res.json() } catch {}
+  if (!res.ok) throw new Error(data?.detail || `Server replied ${res.status}`)
+  return data
+}
+async function cloudTest() {
+  if (!cloudBase() || cloud.token.trim().length < 24) { cloud.msg = '<span class="bad">' + escHtml(cloudProblem()) + '</span>'; return cloudRender() }
+  cloud.msg = 'Checking…'; cloudRender()
+  try {
+    const r = await cloudFetch('/check')
+    cloud.msg = `<span class="ok">Connected.</span> ${escHtml(r.model || '')} on ${escHtml(r.gpu || 'GPU')}. The GPU was not started.`
+  } catch (e) { cloud.msg = '<span class="bad">' + escHtml(e.message) + '</span>' }
+  cloudRender()
+}
+async function cloudScan() {
+  if (cloud.busy) { cloud.ctrl?.abort('cancel'); return }
+  const text = $('input').value
+  const problem = cloudProblem()
+  if (problem) { toast(problem); $('cloudPanel').hidden = false; return }
+  if (!text.trim()) return toast('Paste some text first')
+  if (!cloud.confirmed && !confirm(`Send this text (${text.length.toLocaleString()} characters) to ${new URL(cloudBase()).hostname} for a cloud scan?\n\nIt runs a GPU on your Modal account and is billed to it, usually a few cents.`)) return
+  cloud.confirmed = true // ask once per visit
+  Object.assign(cloud, { busy: true, error: '', t0: performance.now(), ctrl: new AbortController() })
+  const ctrl = cloud.ctrl
+  const limit = setTimeout(() => ctrl.abort('timeout'), 10 * 60e3)
+  cloud.tick = setInterval(cloudRender, 1000)
+  cloudRender(); run()
+  try {
+    const r = await cloudFetch('/scan', { text, cats: cloudCats(), threshold: aiThreshold(), llm: true }, ctrl.signal)
+    cloud.result = { text, spans: r.spans || [], secs: (performance.now() - cloud.t0) / 1000, model: r.model }
+    toast(`Cloud scan done: ${cloud.result.spans.length} items`)
+  } catch (e) {
+    cloud.error = ctrl.signal.aborted ? (ctrl.signal.reason === 'timeout' ? 'Gave up after 10 minutes.' : 'Stopped waiting. The GPU may still finish the job and bill for it.') : e.message
+  } finally {
+    clearTimeout(limit); clearInterval(cloud.tick)
+    cloud.busy = false
+    cloudRender(); run()
+  }
+}
+// Cloud results, mapped onto the current text. If the text was edited after the scan,
+// the same strings are looked up again.
+function cloudHits(text) {
+  const r = cloud.result
+  if (!state.engines.cloud || !r) return []
+  const mk = (start, end, sp) => ({ start, end, cat: CAT[sp.cat] ? sp.cat : 'ids', source: sp.source, score: sp.score ?? 0.8, tier: 2 })
+  if (r.text === text) return r.spans.filter((sp) => sp.end <= text.length).map((sp) => mk(sp.start, sp.end, sp))
+  const out = [], seen = new Set()
+  for (const sp of r.spans) {
+    const k = sp.cat + '\u0000' + sp.text
+    if (seen.has(k) || !sp.text?.trim()) continue
+    seen.add(k)
+    const re = new RegExp((/^[\p{L}\p{N}]/u.test(sp.text) ? '(?<![\\p{L}\\p{N}])' : '') + escRe(sp.text.trim()).replace(/\s+/g, '\\s+') + (/[\p{L}\p{N}]$/u.test(sp.text) ? '(?![\\p{L}\\p{N}])' : ''), 'gu')
+    for (const m of text.matchAll(re)) out.push(mk(m.index, m.index + m[0].length, sp))
+  }
+  return out
+}
+function cloudRender() {
+  const on = state.engines.cloud
+  $('cloudPanel').hidden = !on
+  $('cloudScan').hidden = !on
+  document.querySelector('.lg-cloud').hidden = !on
+  const p = $('privacy')
+  p.className = 'pill ' + (on ? 'warn' : 'ok')
+  p.lastElementChild.textContent = on ? 'Cloud scan on: text is sent when you press Cloud scan.' : 'On this device. Nothing is uploaded.'
+  const secs = Math.round((performance.now() - cloud.t0) / 1000)
+  const st = $('c-state')
+  st.className = 'st'
+  if (!on) st.textContent = 'Off'
+  else if (cloud.busy) st.innerHTML = `Working… ${secs} s${secs > 15 ? ' (the GPU may be starting, 1 to 3 min)' : ''}`
+  else if (cloud.error) st.innerHTML = '<span class="bad">' + escHtml(cloud.error) + '</span>'
+  else if (cloudProblem()) st.innerHTML = '<span class="warn">Set up below.</span>'
+  else if (cloud.result) st.innerHTML = `<span class="ok">Last scan:</span> ${cloud.result.spans.length} items in ${Math.round(cloud.result.secs)} s${cloud.result.text !== $('input').value ? ' (text changed since)' : ''}`
+  else st.innerHTML = '<span class="ok">Ready.</span> Press Cloud scan under the result.'
+  const b = $('cloudScan')
+  b.textContent = cloud.busy ? `Cancel cloud scan (${secs} s)` : 'Cloud scan (billed to Modal)'
+  $('c-msg').innerHTML = cloud.msg
+}
+
 // ---------- merge + redact ----------
-const state = { on: {}, mode: 'label', sensitivity: 'high', propagate: true, engines: { rules: true, gliner: true } }
+const state = { on: {}, mode: 'label', sensitivity: 'high', propagate: true, engines: { rules: true, gliner: true, cloud: false } }
 try {
   const s = JSON.parse(localStorage.getItem('pii-opts-v2') || '{}')
   Object.assign(state, s, { engines: { ...state.engines, ...s.engines }, on: { ...s.on } })
@@ -176,6 +291,7 @@ function collect(text) {
     hits.push(...runPresidio(text).map((h) => ({ ...h, tier: 1 })))
   }
   if (state.engines.gliner && gl.hits && gl.forKey === aiKey(text)) hits.push(...gl.hits.map((h) => ({ ...h, tier: 2 })))
+  hits.push(...cloudHits(text))
   const allow = new Set(splitList($('allow').value).map((s) => s.toLowerCase()))
   const ok = (h) => state.on[h.cat] && !allow.has(text.slice(h.start, h.end).trim().toLowerCase())
   const found = hits.filter(ok)
@@ -257,7 +373,7 @@ function run() {
     const orig = text.slice(h.start, h.end)
     const rep = replacement(h, text, ids)
     const src = [...h.sources]
-    const cls = src.includes('gliner') && !src.includes('patterns') && !src.includes('presidio') ? 's-gliner' : src.every((s) => s === 'repeat') ? 's-repeat' : ''
+    const cls = src.includes('patterns') || src.includes('presidio') || src.includes('custom') ? '' : src.includes('gliner') ? 's-gliner' : src.some((s) => s.startsWith('cloud')) ? 's-cloud' : 's-repeat'
     const by = src.map((s) => SOURCE_NAME[s]).join(', ')
     plain += text.slice(pos, h.start) + rep
     html += escHtml(text.slice(pos, h.start)) + `<mark class="${cls}" title="${escHtml(CAT[h.cat].name + ' · ' + by)}">${escHtml(rep)}</mark>`
@@ -272,20 +388,38 @@ function run() {
   plain += text.slice(pos); html += escHtml(text.slice(pos))
   last = { plain, rows }
   const out = $('output')
-  if (!text) out.innerHTML = '<span class="muted">The redacted text will appear here.</span>'
+  if (!text) out.innerHTML = '<span class="empty">The redacted text appears here as you type or paste.</span>'
   else if ($('hl').checked) out.innerHTML = html
   else out.textContent = plain
   for (const c of CATS) { const el = document.querySelector(`[data-n="${c.id}"]`); if (el) el.textContent = counts[c.id] || '' }
-  const waiting = state.engines.gliner && text.trim() && gl.forKey !== aiKey(text) && ['ready', 'scanning'].includes(gl.state)
-  $('total').textContent = text ? `${hits.length} redaction${hits.length === 1 ? '' : 's'}${waiting ? ' (AI still scanning)' : ''}` : ''
+  $('total').textContent = text ? `${hits.length} redaction${hits.length === 1 ? '' : 's'}` : ''
+  updateNote()
   $('inCount').textContent = text ? `${text.length.toLocaleString()} chars` : ''
   $('mapCount').textContent = rows.length ? `(${rows.length})` : ''
   $('map').innerHTML = rows.map((r) => `<tr><td><code>${escHtml(r[0])}</code></td><td>${escHtml(r[1])}</td><td><code>${escHtml(r[2])}</code></td><td>${escHtml(r[3])}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Nothing found yet.</td></tr>'
 }
 
+// What is still running, so the user doesn't copy a half-finished result.
+function pending() {
+  const text = $('input').value
+  if (!text.trim()) return ''
+  if (state.engines.gliner && gl.forKey !== aiKey(text) && ['ready', 'scanning', 'loading'].includes(gl.state)) return 'The AI is still scanning. More items may be redacted in a moment.'
+  if (state.engines.gliner && gl.state === 'downloading') return 'The AI model is downloading. Only the rules have run so far.'
+  if (cloud.busy) return 'Cloud scan in progress.'
+  return ''
+}
+
+function updateNote() {
+  const note = pending()
+  $('outNote').hidden = !note
+  $('outNote').lastElementChild.textContent = note
+  $('cloudScan').disabled = !$('input').value.trim() && !cloud.busy
+}
+
 let runTimer = 0
 function onInput() {
   clearTimeout(runTimer)
+  if (cloud.result) cloudRender()
   const big = $('input').value.length > 40000
   runTimer = setTimeout(run, big ? 250 : 0)
   scheduleScan()
@@ -304,20 +438,37 @@ function readFile(f) {
   if (f.size > 5e6) return toast('File is larger than 5 MB')
   f.text().then((t) => { $('input').value = t; onInput() })
 }
-const settingsChanged = () => { save(); run(); scheduleScan(200); glRender() }
+const settingsChanged = () => { save(); run(); scheduleScan(200); glRender(); cloudRender() }
 
-$('cats').innerHTML = CATS.map((c) => `<label class="chip"><input type="checkbox" data-id="${c.id}" ${state.on[c.id] ? 'checked' : ''}>${c.name} <span class="n" data-n="${c.id}"></span></label>`).join('')
+const chip = (c) => `<label class="chip"><input type="checkbox" data-id="${c.id}" ${state.on[c.id] ? 'checked' : ''}>${c.name} <span class="n" data-n="${c.id}"></span></label>`
+$('cats').innerHTML = [...new Set(CATS.map((c) => c.group))].map((g) => `<div class="grp"><span>${g}</span><div class="chips">${CATS.filter((c) => c.group === g).map(chip).join('')}</div></div>`).join('')
 $('cats').addEventListener('change', (e) => { state.on[e.target.dataset.id] = e.target.checked; settingsChanged() })
-for (const k of ['rules', 'gliner']) {
+for (const [id, val] of [['allOn', true], ['allOff', false]]) $(id).addEventListener('click', () => {
+  for (const c of CATS) state.on[c.id] = val
+  for (const el of $('cats').querySelectorAll('input')) el.checked = val
+  settingsChanged()
+})
+for (const k of ['rules', 'gliner', 'cloud']) {
   const el = $('e-' + k)
   el.checked = state.engines[k]
   el.addEventListener('change', () => {
     state.engines[k] = el.checked
     if (k === 'gliner' && el.checked && (gl.state === 'off' || gl.state === 'error')) glWorker().postMessage({ type: 'load', onlyIfCached: true, labels: aiLabels() })
+    if (k === 'rules') $('r-status').textContent = el.checked ? 'On' : 'Off'
     settingsChanged()
   })
 }
 $('g-download').addEventListener('click', (e) => { e.preventDefault(); glDownload() })
+$('r-status').textContent = state.engines.rules ? 'On' : 'Off'
+$('c-url').value = cloud.url
+$('c-token').value = cloud.token
+$('c-ack').checked = cloud.ack
+$('c-remember').checked = cloud.remember
+for (const [id, key, prop] of [['c-url', 'url', 'value'], ['c-token', 'token', 'value'], ['c-ack', 'ack', 'checked'], ['c-remember', 'remember', 'checked']]) {
+  $(id).addEventListener(prop === 'value' ? 'input' : 'change', (e) => { cloud[key] = e.target[prop]; cloud.msg = ''; cloudSave(); cloudRender() })
+}
+$('c-test').addEventListener('click', cloudTest)
+$('cloudScan').addEventListener('click', cloudScan)
 $('sensitivity').value = state.sensitivity
 $('sensitivity').addEventListener('change', (e) => { state.sensitivity = e.target.value; settingsChanged() })
 $('propagate').checked = state.propagate
@@ -328,10 +479,12 @@ $('input').addEventListener('input', onInput)
 for (const id of ['custom', 'allow']) $(id).addEventListener('input', run)
 $('hl').addEventListener('change', run)
 $('copy').addEventListener('click', async () => {
+  const p = pending()
+  if (p && !confirm(p + '\n\nCopy the current result anyway?')) return
   try { await navigator.clipboard.writeText(last.plain); toast('Copied redacted text') }
   catch { const r = document.createRange(); r.selectNodeContents($('output')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Press Ctrl+C to copy') }
 })
-$('download').addEventListener('click', () => download('redacted.txt', last.plain, 'text/plain'))
+$('download').addEventListener('click', () => { const p = pending(); if (!p || confirm(p + '\n\nDownload the current result anyway?')) download('redacted.txt', last.plain, 'text/plain') })
 $('dlMap').addEventListener('click', () => {
   const csv = 'replacement,type,original,found_by\n' + last.rows.map((r) => r.map((c) => '"' + c.replace(/"/g, '""') + '"').join(',')).join('\n')
   download('redaction-key.csv', csv, 'text/csv')
@@ -375,4 +528,5 @@ $('theme').addEventListener('click', () => {
 // Open the AI model straight away if it's already downloaded; otherwise offer the download.
 if (state.engines.gliner) { gl.state = 'loading'; glWorker().postMessage({ type: 'load', onlyIfCached: true, labels: aiLabels() }) }
 glRender()
+cloudRender()
 run()

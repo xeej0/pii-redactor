@@ -3,8 +3,9 @@
 Paste text (or drop a .txt/.csv/.md/.json/.log file) and get a copy with personal information removed.
 Live at https://pii.xeej.app.
 
-Everything runs on your device. The page's Content Security Policy only allows network requests to this site
-itself, so the text you redact cannot be sent anywhere.
+By default everything runs on your device. The page's Content Security Policy only allows network requests to this
+site itself and to `*.modal.run`, which is used only by the optional Cloud GPU scan, after you set it up with your own
+Modal account and press **Cloud scan**. See [cloud/README.md](cloud/README.md) for set-up, costs and privacy.
 
 ## How detection works
 
@@ -15,6 +16,8 @@ itself, so the text you redact cannot be sent anywhere.
   the browser's Cache Storage, then works offline.
 - **Rule backstop:** hand-written patterns (cards, SSNs, IBANs, phones, "LLP / P.C. / Inc." company names, ZIPs, ...)
   plus Microsoft Presidio's 52 English recognizers ported to JS (`presidio.js`, data from `scripts/build_presidio.py`).
+- **Cloud GPU (optional, off by default):** the full GLiNER2 model plus an open LLM reviewer (Qwen3-14B) on your own
+  Modal account. Sends the text to your Modal server and is billed to it; see `cloud/`.
 - **Repeats:** once a name or company is found, its other mentions are redacted too, including a person's surname on
   its own (common English words from `common-words.js` are never spread).
 
@@ -33,6 +36,7 @@ span decoding to JavaScript.
 - `gliner2.js`, `worker.js`: the AI model in a Web Worker (download, checksum check, cache, inference).
 - `model/g2pii-v1/`: the exported model in 24 MB pieces, `manifest.json` lists them with a SHA-256.
 - `presidio.js`, `presidio-data.js`, `common-words.js` (wordfreq, CC BY-SA 4.0).
+- `cloud/`: the optional Modal GPU server (`modal_app.py`, `review.py`, set-up guide).
 - `vendor/`: onnxruntime-web 1.30.0 (MIT) and @huggingface/tokenizers 0.2.0 (Apache-2.0).
 
 No build step: it's static files. Detection is never perfect; review the output before sharing.

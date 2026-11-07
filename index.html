@@ -4,95 +4,184 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
-<meta name="description" content="Redact personal information from text, entirely in your browser.">
+<meta name="description" content="Redact names, companies, addresses, phone numbers and IDs from text, on your own device.">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121418" media="(prefers-color-scheme: dark)">
 <title>PII Redactor</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2314171c'/%3E%3Crect x='12' y='20' width='40' height='8' rx='2' fill='%23f1f3f6'/%3E%3Crect x='12' y='36' width='26' height='8' rx='2' fill='%236ea8ff'/%3E%3C/svg%3E">
 <style>
-:root{--bg:#f6f7f9;--panel:#fff;--ink:#14171c;--muted:#5d6675;--line:#dfe3e9;--accent:#2f6fe0;--accent-ink:#fff;--hit:#ffe08a;--hit-ink:#14171c;--hit2:#c9dcff;--hit3:#d6f2d0;--red:#c62f2f;--green:#1f8a4c;color-scheme:light}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171c;--panel:#1c2027;--ink:#f1f3f6;--muted:#9aa3b2;--line:#303743;--accent:#6ea8ff;--accent-ink:#0b1220;--hit:#6b5410;--hit-ink:#fff3c4;--hit2:#1f3b6b;--hit3:#1d4a2b;--red:#ff6b6b;--green:#5fd08f;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#14171c;--panel:#1c2027;--ink:#f1f3f6;--muted:#9aa3b2;--line:#303743;--accent:#6ea8ff;--accent-ink:#0b1220;--hit:#6b5410;--hit-ink:#fff3c4;--hit2:#1f3b6b;--hit3:#1d4a2b;--red:#ff6b6b;--green:#5fd08f;color-scheme:dark}
+:root{--bg:#f5f6f8;--panel:#fff;--sunk:#f0f2f5;--ink:#14171c;--muted:#5b6474;--line:#e1e5eb;--line2:#cfd5de;--accent:#2b67d8;--accent-ink:#fff;--accent-soft:#e8f0fd;
+  --hit:#ffe08a;--hit-ink:#14171c;--hit-ai:#cdeec5;--hit-cloud:#e3d7ff;--hit-rep:#cfe0ff;
+  --ok:#1b7f45;--ok-soft:#e3f5ea;--warn:#9a5b00;--warn-soft:#fff4dc;--warn-line:#f0d08a;--bad:#c42b2b;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121418;--panel:#1a1e24;--sunk:#14171c;--ink:#eef1f5;--muted:#9aa3b2;--line:#2b313b;--line2:#3a424f;--accent:#6ea8ff;--accent-ink:#0b1220;--accent-soft:#1c2a40;
+  --hit:#6b5410;--hit-ink:#fff3c4;--hit-ai:#1f4a2b;--hit-cloud:#3b2c66;--hit-rep:#1f3b6b;
+  --ok:#5fd08f;--ok-soft:#173326;--warn:#ffc56b;--warn-soft:#33270f;--warn-line:#5c4517;--bad:#ff6b6b;--shadow:none;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121418;--panel:#1a1e24;--sunk:#14171c;--ink:#eef1f5;--muted:#9aa3b2;--line:#2b313b;--line2:#3a424f;--accent:#6ea8ff;--accent-ink:#0b1220;--accent-soft:#1c2a40;
+  --hit:#6b5410;--hit-ink:#fff3c4;--hit-ai:#1f4a2b;--hit-cloud:#3b2c66;--hit-rep:#1f3b6b;
+  --ok:#5fd08f;--ok-soft:#173326;--warn:#ffc56b;--warn-soft:#33270f;--warn-line:#5c4517;--bad:#ff6b6b;--shadow:none;color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header{max-width:1200px;margin:0 auto;padding:20px 16px 8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-h1{font-size:1.35rem;margin:0}
-.tag{font-size:.8rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
-header .sp{flex:1}
-main{max-width:1200px;margin:0 auto;padding:8px 16px 40px;display:grid;gap:16px;grid-template-columns:1fr 1fr}
-@media (max-width:860px){main{grid-template-columns:1fr}}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}
-.card h2{font-size:.95rem;margin:0 0 10px;display:flex;align-items:center;gap:8px}
-.card h2 .sp{flex:1}
-textarea,.out{width:100%;min-height:340px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:12px;resize:vertical;white-space:pre-wrap;word-break:break-word;overflow:auto}
-.out{max-height:70vh}
-textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
-mark{background:var(--hit);color:var(--hit-ink);border-radius:3px;padding:0 2px}
-mark.s-presidio{background:var(--hit2);color:inherit}
-mark.s-gliner{background:var(--hit3);color:inherit}
-mark.s-repeat{background:var(--hit2);color:inherit}
-.eng button{margin-top:8px}
+a{color:var(--accent)}
+.wrap{max-width:1200px;margin:0 auto;padding:0 16px}
+header.top{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:22px 0 14px}
+.brand{display:flex;gap:12px;align-items:center;min-width:0}
+.brand svg{flex:none}
+h1{font-size:1.3rem;margin:0;letter-spacing:-.01em}
+.sub{margin:0;color:var(--muted);font-size:.9rem}
+.sp{flex:1}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:.82rem;font-weight:600;border-radius:999px;padding:5px 12px;border:1px solid var(--line);background:var(--panel)}
+.pill i{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.pill.ok{color:var(--ok);background:var(--ok-soft);border-color:transparent}
+.pill.warn{color:var(--warn);background:var(--warn-soft);border-color:var(--warn-line)}
+.pill.warn i{background:var(--warn)}
+button.icon{padding:7px;line-height:0}
+main{display:grid;gap:16px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding-bottom:40px}
+@media (max-width:860px){main{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0;box-shadow:var(--shadow)}
 .full{grid-column:1/-1}
-.sec{font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
-.engines{display:grid;gap:10px;grid-template-columns:3fr 2fr;margin-bottom:16px}
-@media (max-width:860px){.engines{grid-template-columns:1fr}}
-.eng{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--bg);display:flex;gap:10px;align-items:flex-start;cursor:pointer}
-.eng:has(input:checked){border-color:var(--accent)}
-.eng input{margin:3px 0 0;accent-color:var(--accent);flex:none}
-.eng b{display:block;font-size:.95rem}
-.eng .d{font-size:.83rem;color:var(--muted);line-height:1.4}
-.eng .st{font-size:.8rem;margin-top:4px;font-weight:600}
-.dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:0;background:var(--hit)}
-.dot.s-gliner{background:var(--hit3)}
+.card h2{font-size:1rem;margin:0;display:flex;align-items:center;gap:8px}
+.head{display:flex;align-items:center;gap:10px;margin:0 0 10px;flex-wrap:wrap}
+.step{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:.78rem;font-weight:700;flex:none}
+.sec{font-size:.76rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px;display:flex;gap:10px;align-items:center}
+.sec:first-child{margin-top:0}
+.engines{display:grid;gap:10px;grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:980px){.engines{grid-template-columns:minmax(0,1fr)}}
+.eng{position:relative;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--sunk);display:flex;gap:10px;align-items:flex-start;cursor:pointer;transition:border-color .15s,background .15s}
+.eng:hover{border-color:var(--line2)}
+.eng:has(input:checked){border-color:var(--accent);background:var(--panel);box-shadow:0 0 0 1px var(--accent) inset}
+.eng.cloud:has(input:checked){border-color:var(--warn);box-shadow:0 0 0 1px var(--warn) inset}
+.eng input{margin:3px 0 0;accent-color:var(--accent);flex:none;width:16px;height:16px}
+.eng b{display:flex;align-items:center;gap:6px;font-size:.95rem;flex-wrap:wrap}
+.eng .d{font-size:.84rem;color:var(--muted);line-height:1.45;margin-top:3px}
+.eng .st{font-size:.82rem;margin-top:6px;font-weight:600}
+.badge{font-size:.7rem;font-weight:700;letter-spacing:.02em;border-radius:6px;padding:1px 7px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.badge.warn{background:var(--warn-soft);color:var(--warn)}
+.badge.ok{background:var(--ok-soft);color:var(--ok)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:3px;flex:none;background:var(--hit)}
+.sw.ai{background:var(--hit-ai)}.sw.cloud{background:var(--hit-cloud)}.sw.rep{background:var(--hit-rep)}
 .bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:6px}
 .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
-.ok{color:var(--green)}.warn{color:var(--red)}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 10px;cursor:pointer;user-select:none;font-size:.88rem;background:var(--bg)}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+.cloudpanel{margin-top:10px;border:1px solid var(--warn-line);background:var(--warn-soft);border-radius:12px;padding:14px}
+.cloudpanel h3{margin:0 0 6px;font-size:.95rem;color:var(--warn)}
+.cloudpanel ul{margin:0 0 12px;padding-left:20px;font-size:.88rem}
+.cloudpanel li{margin:3px 0}
+.grid2{display:grid;gap:10px;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+@media (max-width:700px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:.85rem;font-weight:600;min-width:0}
+.groups{display:grid;gap:8px}
+.grp{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.grp>span{font-size:.8rem;color:var(--muted);width:120px;flex:none}
+@media (max-width:600px){.grp>span{width:100%}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 11px;cursor:pointer;user-select:none;font-size:.87rem;background:var(--sunk);transition:border-color .15s,background .15s}
+.chip:has(input:checked){background:var(--accent-soft);border-color:transparent}
 .chip input{margin:0;accent-color:var(--accent)}
-.chip .n{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.8rem}
-.optrow{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px}
+.chip .n{font-variant-numeric:tabular-nums;color:var(--accent);font-size:.78rem;font-weight:700}
+.optrow{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center}
 label.f{display:flex;gap:8px;align-items:center;font-size:.9rem}
-select,input[type=text]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
-input[type=text]{width:100%}
-button{font:600 .88rem system-ui;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer}
+label.f input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;flex:none}
+select,input[type=text],input[type=password],input[type=url]{font:inherit;font-weight:400;color:var(--ink);background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:7px 9px;min-width:0;max-width:100%}
+.fld input,.lists input{width:100%}
+textarea,.out{width:100%;min-height:360px;border:1px solid var(--line);border-radius:10px;background:var(--sunk);color:var(--ink);font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:12px;resize:vertical;white-space:pre-wrap;word-break:break-word;overflow:auto}
+.out{max-height:70vh}
+@media (max-width:860px){textarea,.out{min-height:240px}}
+textarea:focus,select:focus,input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.empty{color:var(--muted);font-family:system-ui,sans-serif}
+mark{background:var(--hit);color:var(--hit-ink);border-radius:3px;padding:0 2px}
+mark.s-gliner{background:var(--hit-ai);color:inherit}
+mark.s-cloud{background:var(--hit-cloud);color:inherit}
+mark.s-repeat{background:var(--hit-rep);color:inherit}
+button{font:600 .88rem system-ui,sans-serif;border:1px solid var(--line2);background:var(--panel);color:var(--ink);border-radius:9px;padding:7px 13px;cursor:pointer;transition:filter .15s,background .15s}
+button:hover:not(:disabled){filter:brightness(.97)}
+button:disabled{opacity:.5;cursor:not-allowed}
 button.p{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-button.link{border:0;background:none;padding:0;color:var(--accent);font-weight:500;text-decoration:underline;cursor:pointer}
-button:focus-visible,.chip:focus-within,.eng:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+button.cl{background:var(--hit-cloud);border-color:transparent}
+button.link{border:0;background:none;padding:0;color:var(--accent);font-weight:600;font-size:.82rem;text-transform:none;letter-spacing:0;cursor:pointer}
+button:focus-visible,.chip:focus-within,.eng:focus-within{outline:2px solid var(--accent);outline-offset:2px}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
 .muted{color:var(--muted);font-size:.85rem}
+.note{display:flex;gap:8px;align-items:center;font-size:.85rem;border-radius:9px;padding:7px 10px;margin:0 0 10px;background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn-line)}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(1turn)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--muted);margin-top:10px}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.lists{display:grid;gap:10px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:12px}
+@media (max-width:600px){.lists{grid-template-columns:minmax(0,1fr)}}
 table{width:100%;border-collapse:collapse;font-size:.88rem}
-td,th{text-align:left;padding:6px 8px;border-top:1px solid var(--line);vertical-align:top;word-break:break-word}
+td,th{text-align:left;padding:7px 8px;border-top:1px solid var(--line);vertical-align:top;word-break:break-word}
 th{color:var(--muted);font-weight:600}
 code{font-family:ui-monospace,Menlo,Consolas,monospace}
-details summary{cursor:pointer;font-weight:600}
-.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:10px;font-size:.9rem;opacity:0;transition:opacity .2s;pointer-events:none}
+details summary{cursor:pointer;font-weight:600;list-style-position:inside}
+.toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 15px;border-radius:10px;font-size:.9rem;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100% - 32px)}
 .toast.on{opacity:1}
 .drop{outline:2px dashed var(--accent)!important}
+footer{grid-column:1/-1;color:var(--muted);font-size:.84rem;line-height:1.55}
+footer p{margin:0 0 6px}
 </style>
 </head>
 <body>
-<header>
-  <h1>PII Redactor</h1>
-  <span class="tag">Runs on your device. Your text is never uploaded.</span>
+<div class="wrap">
+<header class="top">
+  <div class="brand">
+    <svg width="38" height="38" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#14171c"/><rect x="12" y="20" width="40" height="8" rx="2" fill="#f1f3f6"/><rect x="12" y="36" width="26" height="8" rx="2" fill="#6ea8ff"/></svg>
+    <div><h1>PII Redactor</h1><p class="sub">Remove names, companies, addresses and IDs from text before you share it.</p></div>
+  </div>
   <span class="sp"></span>
-  <button id="theme" title="Toggle theme">Theme</button>
+  <span class="pill ok" id="privacy"><i></i><span>On this device. Nothing is uploaded.</span></span>
+  <button id="theme" class="icon" title="Switch light or dark" aria-label="Switch light or dark theme"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
 </header>
+
 <main>
-  <section class="card full" aria-label="Options">
-    <p class="sec">Detection</p>
+  <section class="card full" aria-label="Settings">
+    <p class="sec"><span class="step">1</span>How to find it</p>
     <div class="engines">
-      <label class="eng"><input type="checkbox" id="e-gliner"><div><b><span class="dot s-gliner"></span>AI model (GLiNER2)</b>
-        <div class="d">Reads the text like a person would: names, companies, law firms, addresses, cities, IDs and more, even without obvious patterns. Runs on this device. One-time 146 MB download, then works offline.</div>
+      <label class="eng"><input type="checkbox" id="e-gliner"><div>
+        <b><span class="sw ai"></span>AI model <span class="badge">Recommended</span><span class="badge ok">On device</span></b>
+        <div class="d">Reads the text like a person: names, companies, law firms, addresses, cities, IDs, even without obvious patterns. One-time 146 MB download, then works offline.</div>
         <div class="st" id="g-status">Off</div><div class="bar" id="g-bar" hidden><i></i></div>
-        <button class="p" id="g-download" hidden>Download AI model (146 MB)</button></div></label>
-      <label class="eng"><input type="checkbox" id="e-rules"><div><b><span class="dot"></span>Rule backstop</b>
-        <div class="d">Exact patterns plus Microsoft Presidio's 52 recognizers, with checksums: card numbers, SSNs, IBANs, passports, phone numbers, "LLP / P.C. / Inc." company names. Catches structured items the AI can miss. Instant.</div></div></label>
+        <button class="p" id="g-download" hidden style="margin-top:8px">Download AI model (146 MB)</button></div></label>
+      <label class="eng"><input type="checkbox" id="e-rules"><div>
+        <b><span class="sw"></span>Rule backstop <span class="badge ok">On device</span></b>
+        <div class="d">Exact patterns and Microsoft Presidio's 52 recognizers with checksums: cards, SSNs, IBANs, passports, phones, "LLP / P.C. / Inc." names. Instant.</div>
+        <div class="st" id="r-status">On</div></div></label>
+      <label class="eng cloud"><input type="checkbox" id="e-cloud"><div>
+        <b><span class="sw cloud"></span>Cloud GPU <span class="badge warn">Sends text</span><span class="badge warn">Costs money</span></b>
+        <div class="d">A bigger AI on your own Modal account: the full GLiNER2 model plus an open LLM (Qwen3 14B) that rereads everything. Only runs when you press Cloud scan.</div>
+        <div class="st" id="c-state">Off</div></div></label>
     </div>
-    <p class="sec">What to redact</p>
-    <div class="chips" id="cats"></div>
+
+    <div class="cloudpanel" id="cloudPanel" hidden>
+      <h3>Before you use the cloud scan</h3>
+      <ul>
+        <li><b>Your text leaves this device.</b> It goes over HTTPS to your Modal server and is processed on a rented GPU. Nothing is stored or logged by our code, but Modal (and its cloud providers) handle it while it runs.</li>
+        <li><b>It is billed to your Modal account.</b> Roughly 5 to 15 cents for a one-off scan (mostly the GPU starting and staying ready for 2 minutes), about 1 cent for more scans while it is warm. The first scan after a break waits 1 to 3 minutes for the GPU to start.</li>
+        <li><b>Nothing is sent automatically.</b> A scan only runs when you press <i>Cloud scan</i>, and you are asked to confirm.</li>
+      </ul>
+      <div class="grid2">
+        <label class="fld">Endpoint URL<input type="url" id="c-url" placeholder="https://your-name--pii-redactor-web.modal.run" autocomplete="off" spellcheck="false"></label>
+        <label class="fld">Access token<input type="password" id="c-token" placeholder="The PII_TOKEN you set in Modal" autocomplete="off" spellcheck="false"></label>
+      </div>
+      <div class="optrow" style="margin-top:10px">
+        <label class="f"><input type="checkbox" id="c-ack"> I understand cloud scans send my text to my Modal server and are charged to my Modal account.</label>
+        <label class="f"><input type="checkbox" id="c-remember"> Remember URL and token in this browser</label>
+      </div>
+      <div class="row"><button id="c-test">Test connection (free)</button><span class="muted" id="c-msg"></span></div>
+      <p class="muted" style="margin:10px 0 0">Set-up takes about 10 minutes: <a href="https://github.com/xeej0/pii-redactor/blob/main/cloud/README.md" target="_blank" rel="noopener noreferrer">cloud/README.md</a>. The page only connects to <code>*.modal.run</code>.</p>
+    </div>
+
+    <p class="sec"><span class="step">2</span>What to redact <span class="sp"></span><button class="link" id="allOn">Select all</button><button class="link" id="allOff">Clear</button></p>
+    <div class="groups" id="cats"></div>
+
+    <p class="sec"><span class="step">3</span>Output</p>
     <div class="optrow">
       <label class="f">Replace with
         <select id="mode">
-          <option value="label">Labels ([EMAIL_1])</option>
+          <option value="label">Labels ([NAME_1])</option>
           <option value="block">Black bars (█████)</option>
           <option value="mask">Partial mask (keep last 4)</option>
           <option value="generic">[REDACTED]</option>
@@ -105,51 +194,58 @@ details summary{cursor:pointer;font-weight:600}
           <option value="max">Maximum (more over-redaction)</option>
         </select>
       </label>
-      <label class="f"><input type="checkbox" id="propagate"> Also redact every other mention of found names and companies</label>
+      <label class="f"><input type="checkbox" id="propagate"> Redact every other mention of found names and companies</label>
       <label class="f"><input type="checkbox" id="hl" checked> Highlight in preview</label>
     </div>
   </section>
 
   <section class="card">
-    <h2>Input <span class="sp"></span><span class="muted" id="inCount"></span></h2>
-    <textarea id="input" spellcheck="false" placeholder="Paste text here, or drop a .txt / .csv / .md / .json / .log file"></textarea>
+    <div class="head"><h2>Original</h2><span class="sp"></span><span class="muted" id="inCount"></span></div>
+    <textarea id="input" spellcheck="false" aria-label="Text to redact" placeholder="Paste text here, or drop a .txt / .csv / .md / .json / .log file"></textarea>
     <div class="row">
       <button id="load">Open file</button>
       <input type="file" id="file" accept=".txt,.csv,.md,.json,.log,.tsv,.xml,.html,text/*" hidden>
       <button id="sample">Try a sample</button>
       <button id="clear">Clear</button>
     </div>
-    <div class="row" style="flex-direction:column;align-items:stretch">
-      <label class="muted" for="custom">Always redact these (comma or new line separated, e.g. names, project codes)</label>
-      <input type="text" id="custom" placeholder="Jane Doe, Acme Corp, Project Falcon">
-      <label class="muted" for="allow">Never redact these</label>
-      <input type="text" id="allow" placeholder="support@mycompany.com">
+    <div class="lists">
+      <label class="fld">Always redact<input type="text" id="custom" placeholder="Jane Doe, Acme Corp, Project Falcon"></label>
+      <label class="fld">Never redact<input type="text" id="allow" placeholder="support@mycompany.com"></label>
     </div>
   </section>
 
   <section class="card">
-    <h2>Redacted <span class="sp"></span><span class="muted" id="total"></span></h2>
+    <div class="head"><h2>Redacted</h2><span class="sp"></span><span class="muted" id="total"></span></div>
+    <div class="note" id="outNote" hidden><span class="spin"></span><span></span></div>
     <div class="out" id="output" aria-live="polite"></div>
     <div class="row">
       <button class="p" id="copy">Copy</button>
       <button id="download">Download .txt</button>
+      <span class="sp"></span>
+      <button class="cl" id="cloudScan" hidden>Cloud scan</button>
+    </div>
+    <div class="legend" id="legend">
+      <span><i class="sw ai"></i>AI on device</span><span><i class="sw"></i>Rules</span><span class="lg-cloud" hidden><i class="sw cloud"></i>Cloud GPU</span><span><i class="sw rep"></i>Repeat of a found name</span>
     </div>
   </section>
 
   <section class="card full">
     <details id="mapBox">
       <summary>What was found <span class="muted" id="mapCount"></span></summary>
-      <p class="muted warn">This table shows the original values. Don't share it alongside the redacted text.</p>
+      <p class="muted bad">This table shows the original values. Don't share it alongside the redacted text.</p>
       <div style="overflow:auto"><table><thead><tr><th>Replacement</th><th>Type</th><th>Original</th><th>Found by</th></tr></thead><tbody id="map"></tbody></table></div>
       <div class="row"><button id="dlMap">Download key (.csv)</button></div>
     </details>
-    <p class="muted" style="margin:12px 0 0">Detection can miss things and occasionally over-match, whichever engines are on. Always review before sharing.
-      Highlights: green = found only by the AI, blue = a repeat of a name or company found elsewhere, yellow = found by the rules.
-      The AI model is stored in this browser's site data (about 146 MB) so it opens instantly and offline next time.
-      <button class="link" id="forget" hidden>Remove downloaded model</button></p>
   </section>
+
+  <footer>
+    <p>Detection can miss things and occasionally over-match. Always read the result before sharing.</p>
+    <p>The AI model is kept in this browser's site data (about 146 MB) so it opens instantly and offline next time. <button class="link" id="forget" hidden>Remove downloaded model</button></p>
+    <p>Open source: <a href="https://github.com/xeej0/pii-redactor" target="_blank" rel="noopener noreferrer">github.com/xeej0/pii-redactor</a></p>
+  </footer>
 </main>
-<div class="toast" id="toast"></div>
+</div>
+<div class="toast" id="toast" role="status"></div>
 <script type="module" src="./app.js"></script>
 </body>
 </html>
