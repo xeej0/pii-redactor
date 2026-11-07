@@ -42,6 +42,10 @@ async function isCached() {
   return true
 }
 
+// fetch() and body reads reject with a bare "network error" when the connection drops
+const INTERRUPTED = 'Download interrupted. Check your connection and press Download AI model to retry.'
+const net = (p) => p.catch(() => { throw new Error(INTERRUPTED) })
+
 async function download(post) {
   const cache = await openCache()
   const manifest = await getManifest(cache)
@@ -57,13 +61,13 @@ async function download(post) {
       const url = BASE + f
       const hit = cache && (await cache.match(url))
       if (hit) { out[f] = new Uint8Array(await hit.arrayBuffer()); got[f] = out[f].length; report(); continue }
-      const res = await fetch(url)
+      const res = await net(fetch(url))
       if (!res.ok) throw new Error(`Download failed (${res.status}) for ${f}`)
       const reader = res.body.getReader()
       const chunks = []
       got[f] = 0
       for (;;) {
-        const { done, value } = await reader.read()
+        const { done, value } = await net(reader.read())
         if (done) break
         chunks.push(value); got[f] += value.length
         if (chunks.length % 30 === 0) report()
