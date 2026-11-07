@@ -1,0 +1,14 @@
+{
+ "model": "fastino/gliner2-privacy-filter-PII-multi",
+ "export": "scripts/export_gliner2.py (4-bit MatMuls, 4-bit embeddings, Latin vocab)",
+ "parts": [
+  "model.onnx.part0",
+  "model.onnx.part1",
+  "model.onnx.part2",
+  "model.onnx.part3",
+  "model.onnx.part4",
+  "model.onnx.part5"
+ ],
+ "bytes": 141856358,
+ "sha256": "64728ac23487d3aeb348e919592c8a26d1bb3af107fac256e183408e69e59aee"
+}

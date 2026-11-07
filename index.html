@@ -28,9 +28,11 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
 mark{background:var(--hit);color:var(--hit-ink);border-radius:3px;padding:0 2px}
 mark.s-presidio{background:var(--hit2);color:inherit}
 mark.s-gliner{background:var(--hit3);color:inherit}
+mark.s-repeat{background:var(--hit2);color:inherit}
+.eng button{margin-top:8px}
 .full{grid-column:1/-1}
 .sec{font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
-.engines{display:grid;gap:10px;grid-template-columns:repeat(3,1fr);margin-bottom:16px}
+.engines{display:grid;gap:10px;grid-template-columns:3fr 2fr;margin-bottom:16px}
 @media (max-width:860px){.engines{grid-template-columns:1fr}}
 .eng{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--bg);display:flex;gap:10px;align-items:flex-start;cursor:pointer}
 .eng:has(input:checked){border-color:var(--accent)}
@@ -39,7 +41,7 @@ mark.s-gliner{background:var(--hit3);color:inherit}
 .eng .d{font-size:.83rem;color:var(--muted);line-height:1.4}
 .eng .st{font-size:.8rem;margin-top:4px;font-weight:600}
 .dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:0;background:var(--hit)}
-.dot.s-presidio{background:var(--hit2)}.dot.s-gliner{background:var(--hit3)}
+.dot.s-gliner{background:var(--hit3)}
 .bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:6px}
 .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
 .ok{color:var(--green)}.warn{color:var(--red)}
@@ -70,21 +72,20 @@ details summary{cursor:pointer;font-weight:600}
 <body>
 <header>
   <h1>PII Redactor</h1>
-  <span class="tag">Runs in your browser. Your text is never uploaded.</span>
+  <span class="tag">Runs on your device. Your text is never uploaded.</span>
   <span class="sp"></span>
   <button id="theme" title="Toggle theme">Theme</button>
 </header>
 <main>
   <section class="card full" aria-label="Options">
-    <p class="sec">Detection engines</p>
+    <p class="sec">Detection</p>
     <div class="engines">
-      <label class="eng"><input type="checkbox" id="e-patterns"><div><b><span class="dot"></span>Built-in patterns</b>
-        <div class="d">Emails, phones, cards, SSNs, addresses, dates, API keys and names after Mr./Dear/Name:. Instant.</div></div></label>
-      <label class="eng"><input type="checkbox" id="e-presidio"><div><b><span class="dot s-presidio"></span>Presidio rules</b>
-        <div class="d">Microsoft Presidio's 52 English recognizers (passports, IBAN, NHS, ITIN, crypto wallets, medical IDs and more) with checksums and context words. Instant.</div></div></label>
-      <label class="eng"><input type="checkbox" id="e-gliner"><div><b><span class="dot s-gliner"></span>GLiNER2 AI model</b>
-        <div class="d">Finds names, addresses, usernames and IDs in plain prose. Runs on this device. One-time ~470 MB download, then works offline.</div>
-        <div class="st" id="g-status">Off</div><div class="bar" id="g-bar" hidden><i></i></div></div></label>
+      <label class="eng"><input type="checkbox" id="e-gliner"><div><b><span class="dot s-gliner"></span>AI model (GLiNER2)</b>
+        <div class="d">Reads the text like a person would: names, companies, law firms, addresses, cities, IDs and more, even without obvious patterns. Runs on this device. One-time 146 MB download, then works offline.</div>
+        <div class="st" id="g-status">Off</div><div class="bar" id="g-bar" hidden><i></i></div>
+        <button class="p" id="g-download" hidden>Download AI model (146 MB)</button></div></label>
+      <label class="eng"><input type="checkbox" id="e-rules"><div><b><span class="dot"></span>Rule backstop</b>
+        <div class="d">Exact patterns plus Microsoft Presidio's 52 recognizers, with checksums: card numbers, SSNs, IBANs, passports, phone numbers, "LLP / P.C. / Inc." company names. Catches structured items the AI can miss. Instant.</div></div></label>
     </div>
     <p class="sec">What to redact</p>
     <div class="chips" id="cats"></div>
@@ -97,6 +98,14 @@ details summary{cursor:pointer;font-weight:600}
           <option value="generic">[REDACTED]</option>
         </select>
       </label>
+      <label class="f">AI sensitivity
+        <select id="sensitivity">
+          <option value="balanced">Balanced</option>
+          <option value="high">High (recommended)</option>
+          <option value="max">Maximum (more over-redaction)</option>
+        </select>
+      </label>
+      <label class="f"><input type="checkbox" id="propagate"> Also redact every other mention of found names and companies</label>
       <label class="f"><input type="checkbox" id="hl" checked> Highlight in preview</label>
     </div>
   </section>
@@ -135,7 +144,8 @@ details summary{cursor:pointer;font-weight:600}
       <div class="row"><button id="dlMap">Download key (.csv)</button></div>
     </details>
     <p class="muted" style="margin:12px 0 0">Detection can miss things and occasionally over-match, whichever engines are on. Always review before sharing.
-      The AI model files come from <a href="https://huggingface.co/okasi/gliner2-privacy-filter-pii-multi-onnx" target="_blank" rel="noopener">Hugging Face</a> and are stored in this browser.
+      Highlights: green = found only by the AI, blue = a repeat of a name or company found elsewhere, yellow = found by the rules.
+      The AI model is stored in this browser's site data (about 146 MB) so it opens instantly and offline next time.
       <button class="link" id="forget" hidden>Remove downloaded model</button></p>
   </section>
 </main>

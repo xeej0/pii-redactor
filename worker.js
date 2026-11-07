@@ -1,13 +1,13 @@
-// Runs the GLiNER2 PII model off the main thread. The model files are fetched
-// once from Hugging Face and kept in the browser's Cache Storage; the text you
-// redact is only ever passed to this worker, never sent over the network.
+// Runs the GLiNER2 PII model off the main thread. The model (~142 MB) is served by this
+// site, downloaded once and kept in the browser's Cache Storage. The text you redact is
+// only ever passed to this worker, never sent over the network.
 import * as ort from './vendor/ort.wasm.min.mjs'
 import { Tokenizer } from './vendor/tokenizers.min.mjs'
 import { Gliner2 } from './gliner2.js'
 
-const REPO = 'https://huggingface.co/okasi/gliner2-privacy-filter-pii-multi-onnx/resolve/main/'
-const FILES = ['tokenizer.json', 'tokenizer_config.json', 'model_q4.onnx', 'model_q4.onnx.data']
-const CACHE = 'gliner2-pii-q4-v1'
+const BASE = new URL('./model/g2pii-v1/', import.meta.url).href
+const CACHE = 'gliner2-pii-v2'
+const OLD_CACHES = ['gliner2-pii-q4-v1'] // earlier 470 MB model: removed to free space
 
 ort.env.logLevel = 'error'
 ort.env.wasm.wasmPaths = new URL('./vendor/', import.meta.url).href
@@ -19,86 +19,87 @@ let loading = null
 async function openCache() {
   try { return await caches.open(CACHE) } catch { return null }
 }
-
-// Browsers refuse very large single cache entries, so files are stored in pieces.
-const PART = 64 * 1048576
-async function cacheGet(c, url) {
-  const meta = await c.match(url + '?parts')
-  if (!meta) return null
-  const n = +(await meta.text())
-  const parts = []
-  for (let i = 0; i < n; i++) {
-    const r = await c.match(url + '?part=' + i)
-    if (!r) return null
-    parts.push(new Uint8Array(await r.arrayBuffer()))
-  }
-  const buf = new Uint8Array(parts.reduce((a, b) => a + b.length, 0))
-  let o = 0
-  for (const x of parts) { buf.set(x, o); o += x.length }
-  return buf
+async function cleanup() {
+  for (const c of OLD_CACHES) { try { await caches.delete(c) } catch { /* ignore */ } }
 }
-async function cachePut(c, url, buf) {
-  const n = Math.max(1, Math.ceil(buf.length / PART))
-  for (let i = 0; i < n; i++) await c.put(url + '?part=' + i, new Response(buf.subarray(i * PART, (i + 1) * PART)))
-  await c.put(url + '?parts', new Response(String(n))) // written last: marks the file complete
+
+async function getManifest(cache) {
+  const url = BASE + 'manifest.json'
+  const hit = cache && (await cache.match(url))
+  if (hit) return hit.json()
+  const res = await fetch(url, { cache: 'no-store' })
+  if (!res.ok) throw new Error('Could not get the model manifest (' + res.status + ')')
+  return res.json()
 }
 
 async function isCached() {
   const c = await openCache()
   if (!c) return false
-  for (const f of FILES) if (!(await c.match(REPO + f + '?parts'))) return false
+  const m = await c.match(BASE + 'manifest.json')
+  if (!m) return false
+  const { parts } = await m.json()
+  for (const f of ['tokenizer.json', 'tokenizer_config.json', ...parts]) if (!(await c.match(BASE + f))) return false
   return true
 }
 
-async function fetchAll(post) {
+async function download(post) {
   const cache = await openCache()
+  const manifest = await getManifest(cache)
+  const files = ['tokenizer.json', 'tokenizer_config.json', ...manifest.parts]
+  const got = {}
+  let total = manifest.bytes + 4.5e6
+  const report = () => post({ type: 'status', state: 'downloading', done: Object.values(got).reduce((a, b) => a + b, 0), total })
   const out = {}
-  const sizes = {}, got = {}
-  const report = () => {
-    const total = Object.values(sizes).reduce((a, b) => a + b, 0)
-    const done = Object.values(got).reduce((a, b) => a + b, 0)
-    post({ type: 'status', state: 'downloading', done, total })
-  }
-  await Promise.all(FILES.map(async (f) => {
-    const url = REPO + f
-    const hit = cache && (await cacheGet(cache, url))
-    if (hit) { out[f] = hit; sizes[f] = got[f] = hit.length; report(); return }
-    const res = await fetch(url)
-    if (!res.ok) throw new Error(`Download failed (${res.status}) for ${f}`)
-    sizes[f] = +res.headers.get('content-length') || 0
-    const reader = res.body.getReader()
-    const chunks = []
-    got[f] = 0
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      chunks.push(value); got[f] += value.length
-      if (chunks.length % 40 === 0) report()
+  // up to 3 files at a time
+  const queue = [...files]
+  await Promise.all([0, 1, 2].map(async () => {
+    for (let f; (f = queue.shift());) {
+      const url = BASE + f
+      const hit = cache && (await cache.match(url))
+      if (hit) { out[f] = new Uint8Array(await hit.arrayBuffer()); got[f] = out[f].length; report(); continue }
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`Download failed (${res.status}) for ${f}`)
+      const reader = res.body.getReader()
+      const chunks = []
+      got[f] = 0
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value); got[f] += value.length
+        if (chunks.length % 30 === 0) report()
+      }
+      const buf = new Uint8Array(got[f])
+      let o = 0
+      for (const c of chunks) { buf.set(c, o); o += c.length }
+      out[f] = buf
+      report()
+      if (cache) { try { await cache.put(url, new Response(buf)) } catch { /* storage full: still works this session */ } }
     }
-    const buf = new Uint8Array(got[f])
-    let o = 0
-    for (const c of chunks) { buf.set(c, o); o += c.length }
-    out[f] = buf
-    report()
-    if (cache) { try { await cachePut(cache, url, buf) } catch { /* storage full: still works this session */ } }
   }))
-  return out
+  const model = new Uint8Array(manifest.bytes)
+  let o = 0
+  for (const p of manifest.parts) { model.set(out[p], o); o += out[p].length }
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', model))
+  const hex = [...digest].map((b) => b.toString(16).padStart(2, '0')).join('')
+  if (hex !== manifest.sha256) {
+    if (cache) await caches.delete(CACHE)
+    throw new Error('The downloaded model was damaged. Please try again.')
+  }
+  if (cache) { try { await cache.put(BASE + 'manifest.json', new Response(JSON.stringify(manifest))) } catch { /* ignore */ } }
+  return { model, tokenizer: out['tokenizer.json'], config: out['tokenizer_config.json'] }
 }
 
-async function load(post, onlyIfCached) {
+async function load(post, onlyIfCached, labels) {
   if (model) return model
+  cleanup()
   if (onlyIfCached && !(await isCached())) { post({ type: 'status', state: 'off' }); return null }
   loading ??= (async () => {
-    const files = await fetchAll(post)
+    const files = await download(post)
     post({ type: 'status', state: 'loading' })
     const dec = new TextDecoder()
-    const tok = new Tokenizer(JSON.parse(dec.decode(files['tokenizer.json'])), JSON.parse(dec.decode(files['tokenizer_config.json'])))
-    const session = await ort.InferenceSession.create(files['model_q4.onnx'], {
-      executionProviders: ['wasm'],
-      logSeverityLevel: 3,
-      externalData: [{ path: 'model_q4.onnx.data', data: files['model_q4.onnx.data'] }],
-    })
-    model = new Gliner2(tok, session, ort)
+    const tok = new Tokenizer(JSON.parse(dec.decode(files.tokenizer)), JSON.parse(dec.decode(files.config)))
+    const session = await ort.InferenceSession.create(files.model, { executionProviders: ['wasm'], logSeverityLevel: 3 })
+    model = new Gliner2(tok, session, ort, labels || ['person'])
     post({ type: 'status', state: 'ready', threads: ort.env.wasm.numThreads })
     return model
   })()
@@ -117,10 +118,11 @@ async function handle(data) {
   const post = (m) => self.postMessage(m)
   if (data.type === 'predict' && data.id < newest) return
   try {
-    if (data.type === 'load') await load(post, data.onlyIfCached)
-    else if (data.type === 'forget') { await caches.delete(CACHE); post({ type: 'forgot' }) }
+    if (data.type === 'load') await load(post, data.onlyIfCached, data.labels)
+    else if (data.type === 'forget') { await caches.delete(CACHE); await cleanup(); post({ type: 'forgot' }) }
     else if (data.type === 'predict') {
-      const m = await load(post)
+      const m = await load(post, false, data.labels)
+      if (m.labels.join('\n') !== data.labels.join('\n')) m.setLabels(data.labels)
       const t0 = performance.now()
       const ents = await m.predict(data.text, { threshold: data.threshold ?? 0.5, onProgress: (p) => post({ type: 'progress', id: data.id, p }) })
       post({ type: 'result', id: data.id, ents, ms: Math.round(performance.now() - t0) })
