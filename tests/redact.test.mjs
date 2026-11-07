@@ -96,3 +96,9 @@ test('US phones with dashes are phones, not UK NHS numbers; real NHS numbers sti
   const out = await redact('Call 212-555-0199 or 212.555.0199 or (212) 555-0199. NHS number 943 476 5919.')
   assert.equal(out, 'Call [PHONE_1] or [PHONE_2] or [PHONE_3]. NHS number [UK_NHS_1].')
 })
+
+test('a full "First Last" name is redacted whole when its surname was found elsewhere', async () => {
+  const out = await redact("Information provided by Priya Raman, CFO, and later Sean O'Brien. Ms. Raman's file. Mr. O'Brien agreed. Yesterday Raman called.")
+  for (const s of ['Priya', 'Raman', 'Sean', 'Brien']) assert.ok(!out.includes(s), out)
+  assert.ok(out.includes('Yesterday ['), out)
+})

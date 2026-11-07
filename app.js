@@ -312,6 +312,10 @@ function collect(text) {
 // Once a name or company is found, redact its other mentions too (and a person's
 // first or last name on its own), so "Linda Mei" also catches "Defendant Mei".
 const NAME_STOP = new Set(['mr', 'mrs', 'ms', 'mx', 'miss', 'dr', 'prof', 'sir', 'madam', 'hon', 'judge', 'justice', 'esq', 'jr', 'sr', 'ii', 'iii', 'the', 'and', 'of', 'for', 'von', 'van', 'de', 'la', 'del', 'du', 'der', 'des', 'di', 'da', 'le', 'cpa', 'md', 'phd', 'jd'])
+const ROLE_RE = new RegExp(`^(?:${ROLE})$`)
+const DAY_MONTH_RE = new RegExp(`^(?:(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day|${MONTHS})$`)
+// A common word ("Yesterday", "Today") is only taken mid-sentence on the left, so "John Raman" still goes whole.
+const nameWord = (w, common) => !ROLE_RE.test(w) && !DAY_MONTH_RE.test(w) && !NAME_STOP.has(w.toLowerCase()) && (common || !COMMON.has(w.toLowerCase()))
 function propagate(text, hits) {
   if (!state.propagate) return []
   const terms = new Map()
@@ -330,7 +334,19 @@ function propagate(text, hits) {
   const list = [...terms.keys()].sort((a, b) => b.length - a.length)
   const re = new RegExp('(?<![\\p{L}\\p{N}])(?:' + list.map((t) => escRe(t).replace(/ /g, '\\s+')).join('|') + ')(?![\\p{L}\\p{N}])', 'giu')
   const out = []
-  for (const m of text.matchAll(re)) out.push({ start: m.index, end: m.index + m[0].length, cat: terms.get(m[0].replace(/\s+/g, ' ').toLowerCase()) || 'name', source: 'repeat', score: 0.5, tier: 3 })
+  for (const m of text.matchAll(re)) {
+    const key = m[0].replace(/\s+/g, ' ').toLowerCase(), cat = terms.get(key) || 'name'
+    let start = m.index, end = m.index + m[0].length
+    // A repeated surname or first name takes the capitalized word next to it, so "Priya Raman"
+    // is redacted whole after "Ms. Raman" was found, instead of leaving "Priya" showing.
+    if (cat === 'name' && !key.includes(' ')) {
+      const l = /(?<![\p{L}\p{N}'’-])(\p{Lu}\p{Ll}[\p{L}\p{M}'’-]*)[ \t]+$/u.exec(text.slice(Math.max(0, start - 40), start))
+      if (l && nameWord(l[1], !/(?:^|[.!?:;\n]\s*)$/.test(text.slice(0, start - l[0].length)))) start -= l[0].length
+      const r = /^[ \t]+(\p{Lu}\p{Ll}[\p{L}\p{M}-]*)(?![\p{L}\p{M}\p{N}])/u.exec(text.slice(end, end + 40))
+      if (r && nameWord(r[1], false)) end += r[0].length
+    }
+    out.push({ start, end, cat, source: 'repeat', score: 0.5, tier: 3 })
+  }
   return out
 }
 
