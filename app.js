@@ -104,7 +104,7 @@ function glRender() {
   updateNote()
   const on = state.engines.gliner
   const mb = (n) => Math.round(n / 1e6)
-  $('g-download').hidden = !(on && gl.state === 'notdownloaded')
+  $('g-download').hidden = !(on && (gl.state === 'notdownloaded' || (gl.state === 'error' && gl.retry)))
   switch (gl.state) {
     case 'downloading': return glStatus(`Downloading AI model… ${mb(gl.done || 0)} / ${gl.total ? mb(gl.total) : 146} MB`, '', gl.total ? gl.done / gl.total : 0)
     case 'loading': return glStatus('Starting AI model…', '', 1)
@@ -121,14 +121,15 @@ function glWorker() {
   w.onmessage = ({ data: m }) => {
     if (m.type === 'status') {
       if (m.state === 'off') gl.state = 'notdownloaded'
-      else Object.assign(gl, { state: m.state, done: m.done, total: m.total })
+      // after a failed download, progress still arriving from the other files must not hide the error
+      else if (!(gl.state === 'error' && m.state === 'downloading')) Object.assign(gl, { state: m.state, done: m.done, total: m.total })
       if (m.state === 'ready') { $('forget').hidden = false; scheduleScan(0) }
     } else if (m.type === 'progress' && m.id === gl.reqId) { gl.progress = m.p }
     else if (m.type === 'result' && m.id === gl.reqId) {
       gl.state = 'ready'; gl.ms = m.ms; gl.forKey = gl.pendingKey
       gl.hits = m.ents.map((e) => ({ start: e.start, end: e.end, cat: AI_CAT[e.label] || 'ids', source: 'gliner', score: e.score, detail: e.label }))
       run()
-    } else if (m.type === 'error') { gl.state = 'error'; gl.error = 'Error: ' + m.message }
+    } else if (m.type === 'error') { gl.retry = ['downloading', 'loading'].includes(gl.state); gl.state = 'error'; gl.error = 'Error: ' + m.message }
     else if (m.type === 'forgot') { toast('AI model removed from this browser') }
     glRender()
   }
