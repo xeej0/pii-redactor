@@ -418,7 +418,7 @@ function run() {
   else if ($('hl').checked) out.innerHTML = html
   else out.textContent = plain
   for (const c of CATS) { const el = document.querySelector(`[data-n="${c.id}"]`); if (el) el.textContent = counts[c.id] || '' }
-  $('total').textContent = text ? `${hits.length} redaction${hits.length === 1 ? '' : 's'}` : ''
+  $('total').textContent = !text ? '' : CATS.some((c) => state.on[c.id]) ? `${hits.length} redaction${hits.length === 1 ? '' : 's'}` : 'Nothing selected under What to redact'
   updateNote()
   $('inCount').textContent = text ? `${text.length.toLocaleString()} chars` : ''
   $('mapCount').textContent = rows.length ? `(${rows.length})` : ''
