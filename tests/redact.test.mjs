@@ -44,6 +44,17 @@ test('lowercase IBAN is redacted', async () => {
   assert.ok(!/0130|3704/.test(out), out)
 })
 
+test('emails with accented or non-Latin local parts are redacted whole', async () => {
+  const out = await redact('Write to josé.garcía@example.com or أحمد@example.com, or bob@example.co.uk.')
+  for (const s of ['jos', 'garc', 'أحمد', 'example', 'bob']) assert.ok(!out.includes(s), out)
+  assert.ok(out.endsWith('.'), out)
+})
+
+test('names with accented letters are redacted whole by the rules', async () => {
+  const out = await redact('Seen by Ms. Zoë Ångström and Émile Zola, Esq. for patient: José Müller.')
+  for (const s of ['Zo', 'Ångström', 'Émile', 'Zola', 'José', 'Müller']) assert.ok(!out.includes(s), out)
+})
+
 test('basic rules still work', async () => {
   const out = await redact('SSN 219-09-9999, email jane@example.com, card 4111 1111 1111 1111, call (914) 555-0142.')
   for (const s of ['219-09-9999', 'jane@example.com', '4111', '555-0142']) assert.ok(!out.includes(s), out)
@@ -65,4 +76,56 @@ test('cloud spans (Python code point offsets) land on the right text after an em
   await tick(); await tick()
   const out = await redact(text)
   assert.equal(out, 'Hi 😀😀 from [NAME_1] today')
+})
+
+test('title + name stops at a possessive and never absorbs an all-caps word', async () => {
+  const out = await redact("Ms. Raman's SSN on file. Dr. Lee DOB unknown. The SSN and MRN fields.")
+  assert.ok(out.includes("'s SSN on file"), out)
+  assert.ok(out.includes(' DOB unknown'), out)
+  assert.ok(out.includes('The SSN and MRN fields.'), out)
+  for (const s of ['Raman', 'Lee']) assert.ok(!out.includes(s), out)
+})
+
+test('title + full name and accented names still redact whole', async () => {
+  const out = await redact("Ms. Priya Raman signed. Dr. Zoë Ångström's chart. Mr. O'Brien called.")
+  for (const s of ['Priya', 'Raman', 'Zo', 'Ångström', 'Brien']) assert.ok(!out.includes(s), out)
+  assert.ok(out.includes("'s chart"), out)
+})
+
+test('US phones with dashes are phones, not UK NHS numbers; real NHS numbers still found', async () => {
+  const out = await redact('Call 212-555-0199 or 212.555.0199 or (212) 555-0199. NHS number 943 476 5919.')
+  assert.equal(out, 'Call [PHONE_1] or [PHONE_2] or [PHONE_3]. NHS number [UK_NHS_1].')
+})
+
+test('a full "First Last" name is redacted whole when its surname was found elsewhere', async () => {
+  const out = await redact("Information provided by Priya Raman, CFO, and later Sean O'Brien. Ms. Raman's file. Mr. O'Brien agreed. Yesterday Raman called.")
+  for (const s of ['Priya', 'Raman', 'Sean', 'Brien']) assert.ok(!out.includes(s), out)
+  assert.ok(out.includes('Yesterday ['), out)
+})
+
+const { csvCell, toCSV } = await import('../csv.js')
+
+test('CSV cells that look like formulas get a leading quote, plain numbers do not', () => {
+  assert.equal(csvCell('=SUM(A1)'), `"'=SUM(A1)"`)
+  assert.equal(csvCell('@cmd'), `"'@cmd"`)
+  assert.equal(csvCell('+44 20 7946 0958'), `"'+44 20 7946 0958"`)
+  assert.equal(csvCell('\tx'), `"'\tx"`)
+  assert.equal(csvCell('\rx'), `"'\rx"`)
+  assert.equal(csvCell('-2+3'), `"'-2+3"`)
+  assert.equal(csvCell('-500'), '"-500"')
+  assert.equal(csvCell('1234.50'), '"1234.50"')
+  assert.equal(csvCell('Jane Doe'), '"Jane Doe"')
+  assert.equal(csvCell('=HYPERLINK("http://x","a,b")'), `"'=HYPERLINK(""http://x"",""a,b"")"`)
+  assert.equal(toCSV([['a,b', 'say "hi"', 'plain'], ['x', '', '1']]), '"a,b","say ""hi""","plain"\n"x","","1"')
+})
+
+test('redaction-key.csv download neutralizes a formula in the original text', async () => {
+  await redact('Ask for =cmd|"/c calc"!A1 then.', { custom: '=cmd|"/c calc"!A1' })
+  let content
+  const [B, U] = [globalThis.Blob, URL.createObjectURL]
+  globalThis.Blob = class { constructor(parts) { content = parts.join('') } }
+  URL.createObjectURL = () => 'blob:x'
+  try { el('dlMap').fire('click') } finally { globalThis.Blob = B; URL.createObjectURL = U }
+  assert.match(content, /^replacement,type,original,found_by\n/)
+  assert.ok(content.includes(`"'=cmd|""/c calc""!A1"`), content)
 })
