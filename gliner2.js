@@ -114,6 +114,9 @@ export class Gliner2 {
     all.sort((a, b) => b.score - a.score)
     const keep = []
     for (const e of all) if (!keep.some((k) => k.label === e.label && e.start < k.end && e.end > k.start)) keep.push(e)
-    return keep.filter((e) => e.end <= text.length).sort((a, b) => a.start - b.start)
+    // a span may end on the period added above: trim it rather than lose the whole span
+    return keep.filter((e) => e.start < text.length)
+      .map((e) => (e.end > text.length ? { ...e, end: text.length, text: text.slice(e.start) } : e))
+      .sort((a, b) => a.start - b.start)
   }
 }

@@ -1,5 +1,6 @@
 import { analyze as presidio } from './presidio.js'
 import COMMON from './common-words.js'
+import { toCSV } from './csv.js'
 
 const $ = (id) => document.getElementById(id)
 
@@ -47,11 +48,13 @@ const STREET = 'Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Cou
 const STATES = 'Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming|District of Columbia'
 const ORG_SUFFIX = String.raw`LLP|L\.L\.P\.|LLC|L\.L\.C\.|PLLC|P\.L\.L\.C\.|P\.C\.|P\.A\.|Inc\.?|Incorporated|Corp\.?|Corporation|Co\.|Ltd\.?|Limited|GmbH|AG|S\.A\.|N\.V\.|B\.V\.|S\.r\.l\.|LP|L\.P\.`
 const ROLE = 'Defendants?|Plaintiffs?|Respondents?|Petitioners?|Appellants?|Appellees?|Claimants?|The|By|To|From|And|Of|For|With|Attorneys?|Counsel|Dated|Re|Dear|Between'
+// A name word after a title: stops before a possessive 's ("Ms. Raman's" keeps the 's)
+const TNAME = String.raw`\p{Lu}(?:[\p{L}\p{M}-]|'(?![sS](?![\p{L}\p{M}])))+`
 const PATTERNS = [
-  { cat: 'email', re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g },
+  { cat: 'email', re: /(?<![\p{L}\p{N}._%+-])[\p{L}\p{M}\p{N}._%+-]+@[\p{L}\p{M}\p{N}.-]+\.\p{L}{2,}(?![\p{L}\p{N}])/gu },
   { cat: 'url', re: /\bhttps?:\/\/[^\s<>"')\]]+/g },
   { cat: 'card', re: /\b(?:\d[ -]?){12,18}\d\b/g, ok: (m) => { const d = m.replace(/\D/g, ''); return d.length >= 13 && d.length <= 19 && luhn(d) } },
-  { cat: 'iban', re: /\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?\b/g, ok: ibanOk },
+  { cat: 'iban', re: /\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?\b/gi, ok: ibanOk },
   { cat: 'ssn', re: /\b(?!000|666|9\d\d)\d{3}[- ](?!00)\d{2}[- ](?!0000)\d{4}\b/g },
   { cat: 'phone', re: /(?:(?<![\w+])\+\d{1,3}[\s.-]?)?(?<![\w+])(?:\(\d{2,4}\)|\d{2,4})[\s.-]?\d{3,4}[\s.-]?\d{3,4}(?:\s?(?:x|ext\.?)\s?\d{1,5})?\b/g,
     ok: (m) => { const d = m.replace(/\D/g, ''); return d.length >= 10 && d.length <= 15 && !/^\d{4}-\d{2}-\d{2}$/.test(m.trim()) } },
@@ -61,7 +64,7 @@ const PATTERNS = [
   { cat: 'zip', re: /\b[A-Z]{2}\s\d{5}(?:-\d{4})?\b|\b[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}\b/g },
   { cat: 'zip', re: new RegExp(String.raw`(?<=\b(?:${STATES}),?\s)\d{5}(?:-\d{4})?\b`, 'g') },
   { cat: 'org', re: new RegExp(String.raw`\b(?:(?!(?:${ROLE}|Esq|Esquire)\b)[A-Z][\w'’.-]*,?\s+(?:&\s+)?){1,6}(?:${ORG_SUFFIX})(?![\w])`, 'g') },
-  { cat: 'name', re: new RegExp(String.raw`\b(?:(?:Mr|Mrs|Ms|Mx|Miss|Dr|Prof|Sir|Madam|Hon|Judge|Justice)\.?\s+[A-Z][a-zA-Z'-]+(?:\s+[A-Z]\.)?(?:\s+[A-Z][a-zA-Z'-]+){0,2}|(?!(?:${ROLE})\b)[A-Z][a-zA-Z'-]+(?:\s+[A-Z]\.)?(?:\s+[A-Z][a-zA-Z'-]+){1,2}(?=,?\s+(?:Esq|M\.?D|Ph\.?D|J\.?D)\b)|(?<=\b(?:[Nn]ame|[Pp]atient|[Cc]lient|[Cc]ustomer|[Ee]mployee|[Cc]ontact|[Dd]ear|[Ss]igned|[Rr]egards,?|[Ss]incerely,?)\s*[:,]?\s+)(?!(?:${ROLE})\b)[A-Z][a-zA-Z'-]+(?:\s+[A-Z]\.)?(?:\s+[A-Z][a-zA-Z'-]+){1,2})`, 'g') },
+  { cat: 'name', re: new RegExp(String.raw`(?<![\p{L}\p{N}_])(?:(?:Mr|Mrs|Ms|Mx|Miss|Dr|Prof|Sir|Madam|Hon|Judge|Justice)\.?\s+${TNAME}(?:\s+\p{Lu}\.)?(?:\s+(?!\p{Lu}{2,}(?![\p{L}\p{M}]))${TNAME}){0,2}|(?!(?:${ROLE})\b)\p{Lu}[\p{L}\p{M}'-]+(?:\s+\p{Lu}\.)?(?:\s+\p{Lu}[\p{L}\p{M}'-]+){1,2}(?=,?\s+(?:Esq|M\.?D|Ph\.?D|J\.?D)\b)|(?<=\b(?:[Nn]ame|[Pp]atient|[Cc]lient|[Cc]ustomer|[Ee]mployee|[Cc]ontact|[Dd]ear|[Ss]igned|[Rr]egards,?|[Ss]incerely,?)\s*[:,]?\s+)(?!(?:${ROLE})\b)\p{Lu}[\p{L}\p{M}'-]+(?:\s+\p{Lu}\.)?(?:\s+\p{Lu}[\p{L}\p{M}'-]+){1,2})`, 'gu') },
   { cat: 'secret', re: /\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{10,}\b|\bAKIA[0-9A-Z]{16}\b|\bgh[pousr]_[A-Za-z0-9]{30,}\b|\bxox[abpr]-[A-Za-z0-9-]{10,}\b|\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b|\bsk-[A-Za-z0-9_-]{20,}\b/g },
 ]
 function runPatterns(text) {
@@ -81,7 +84,9 @@ function runPatterns(text) {
 // ---------- rules 2: Presidio ----------
 const PRESIDIO_CAT = { EMAIL_ADDRESS: 'email', URL: 'url', CREDIT_CARD: 'card', IBAN_CODE: 'iban', US_SSN: 'ssn', IP_ADDRESS: 'ip', MAC_ADDRESS: 'ip', DATE_TIME: 'date', UK_POSTCODE: 'zip', CA_POSTAL_CODE: 'zip' }
 function runPresidio(text) {
-  return presidio(text).map((r) => {
+  // Presidio's NHS pattern also takes 3-3-4 with dashes, which is how US phones are written
+  // ("212-555-0199" came out as [UK_NHS_1]). NHS numbers are written with spaces, so leave dashed ones to the phone rule.
+  return presidio(text).filter((r) => !(r.entity === 'UK_NHS' && text.slice(r.start, r.end).includes('-'))).map((r) => {
     const cat = PRESIDIO_CAT[r.entity] || 'ids'
     return { start: r.start, end: r.end, cat, source: 'presidio', score: r.score, label: cat === 'ids' ? r.entity : undefined, detail: r.entity }
   })
@@ -104,14 +109,14 @@ function glRender() {
   updateNote()
   const on = state.engines.gliner
   const mb = (n) => Math.round(n / 1e6)
-  $('g-download').hidden = !(on && gl.state === 'notdownloaded')
+  $('g-download').hidden = !(on && (gl.state === 'notdownloaded' || (gl.state === 'error' && gl.retry)))
   switch (gl.state) {
     case 'downloading': return glStatus(`Downloading AI model… ${mb(gl.done || 0)} / ${gl.total ? mb(gl.total) : 146} MB`, '', gl.total ? gl.done / gl.total : 0)
     case 'loading': return glStatus('Starting AI model…', '', 1)
     case 'scanning': return glStatus('AI scanning…', '', gl.progress ?? 0)
     case 'ready': return glStatus(on ? `<span class="ok">Ready</span>${gl.ms ? ` · last scan ${(gl.ms / 1000).toFixed(1)} s` : ''}` : 'Off (model downloaded)')
     case 'notdownloaded': return glStatus(on ? '<span class="warn">Not downloaded yet.</span> Until then only the rules run.' : 'Off')
-    case 'error': return glStatus(gl.error, 'warn')
+    case 'error': return glStatus(escHtml(gl.error), 'warn')
     default: return glStatus(on ? 'Checking…' : 'Off')
   }
 }
@@ -121,14 +126,15 @@ function glWorker() {
   w.onmessage = ({ data: m }) => {
     if (m.type === 'status') {
       if (m.state === 'off') gl.state = 'notdownloaded'
-      else Object.assign(gl, { state: m.state, done: m.done, total: m.total })
+      // after a failed download, progress still arriving from the other files must not hide the error
+      else if (!(gl.state === 'error' && m.state === 'downloading')) Object.assign(gl, { state: m.state, done: m.done, total: m.total })
       if (m.state === 'ready') { $('forget').hidden = false; scheduleScan(0) }
     } else if (m.type === 'progress' && m.id === gl.reqId) { gl.progress = m.p }
     else if (m.type === 'result' && m.id === gl.reqId) {
       gl.state = 'ready'; gl.ms = m.ms; gl.forKey = gl.pendingKey
       gl.hits = m.ents.map((e) => ({ start: e.start, end: e.end, cat: AI_CAT[e.label] || 'ids', source: 'gliner', score: e.score, detail: e.label }))
       run()
-    } else if (m.type === 'error') { gl.state = 'error'; gl.error = 'Error: ' + m.message }
+    } else if (m.type === 'error') { gl.retry = ['downloading', 'loading'].includes(gl.state); gl.state = 'error'; gl.error = 'Error: ' + m.message }
     else if (m.type === 'forgot') { toast('AI model removed from this browser') }
     glRender()
   }
@@ -234,7 +240,13 @@ function cloudHits(text) {
   const r = cloud.result
   if (!state.engines.cloud || !r) return []
   const mk = (start, end, sp) => ({ start, end, cat: CAT[sp.cat] ? sp.cat : 'ids', source: sp.source, score: sp.score ?? 0.8, tier: 2 })
-  if (r.text === text) return r.spans.filter((sp) => sp.end <= text.length).map((sp) => mk(sp.start, sp.end, sp))
+  if (r.text === text) {
+    // The server is Python, whose offsets count code points; JS strings count UTF-16 units
+    // (an emoji is 1 vs 2), so map them or every span after an emoji lands in the wrong place.
+    const at = [0]
+    for (const ch of text) at.push(at[at.length - 1] + ch.length)
+    return r.spans.filter((sp) => sp.start < sp.end && sp.end < at.length).map((sp) => mk(at[sp.start], at[sp.end], sp))
+  }
   const out = [], seen = new Set()
   for (const sp of r.spans) {
     const k = sp.cat + '\u0000' + sp.text
@@ -301,6 +313,10 @@ function collect(text) {
 // Once a name or company is found, redact its other mentions too (and a person's
 // first or last name on its own), so "Linda Mei" also catches "Defendant Mei".
 const NAME_STOP = new Set(['mr', 'mrs', 'ms', 'mx', 'miss', 'dr', 'prof', 'sir', 'madam', 'hon', 'judge', 'justice', 'esq', 'jr', 'sr', 'ii', 'iii', 'the', 'and', 'of', 'for', 'von', 'van', 'de', 'la', 'del', 'du', 'der', 'des', 'di', 'da', 'le', 'cpa', 'md', 'phd', 'jd'])
+const ROLE_RE = new RegExp(`^(?:${ROLE})$`)
+const DAY_MONTH_RE = new RegExp(`^(?:(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day|${MONTHS})$`)
+// A common word ("Yesterday", "Today") is only taken mid-sentence on the left, so "John Raman" still goes whole.
+const nameWord = (w, common) => !ROLE_RE.test(w) && !DAY_MONTH_RE.test(w) && !NAME_STOP.has(w.toLowerCase()) && (common || !COMMON.has(w.toLowerCase()))
 function propagate(text, hits) {
   if (!state.propagate) return []
   const terms = new Map()
@@ -319,25 +335,56 @@ function propagate(text, hits) {
   const list = [...terms.keys()].sort((a, b) => b.length - a.length)
   const re = new RegExp('(?<![\\p{L}\\p{N}])(?:' + list.map((t) => escRe(t).replace(/ /g, '\\s+')).join('|') + ')(?![\\p{L}\\p{N}])', 'giu')
   const out = []
-  for (const m of text.matchAll(re)) out.push({ start: m.index, end: m.index + m[0].length, cat: terms.get(m[0].replace(/\s+/g, ' ').toLowerCase()) || 'name', source: 'repeat', score: 0.5, tier: 3 })
+  for (const m of text.matchAll(re)) {
+    const key = m[0].replace(/\s+/g, ' ').toLowerCase(), cat = terms.get(key) || 'name'
+    let start = m.index, end = m.index + m[0].length
+    // A repeated surname or first name takes the capitalized word next to it, so "Priya Raman"
+    // is redacted whole after "Ms. Raman" was found, instead of leaving "Priya" showing.
+    if (cat === 'name' && !key.includes(' ')) {
+      const l = /(?<![\p{L}\p{N}'’-])(\p{Lu}\p{Ll}[\p{L}\p{M}'’-]*)[ \t]+$/u.exec(text.slice(Math.max(0, start - 40), start))
+      if (l && nameWord(l[1], !/(?:^|[.!?:;\n]\s*)$/.test(text.slice(0, start - l[0].length)))) start -= l[0].length
+      const r = /^[ \t]+(\p{Lu}\p{Ll}[\p{L}\p{M}-]*)(?![\p{L}\p{M}\p{N}])/u.exec(text.slice(end, end + 40))
+      if (r && nameWord(r[1], false)) end += r[0].length
+    }
+    out.push({ start, end, cat, source: 'repeat', score: 0.5, tier: 3 })
+  }
   return out
 }
 
 // Overlaps: your list first, then rules (higher score, then longer), then the AI, then repeats.
 // A later match of the same type that overlaps is merged into the span and credited.
-function merge(hits) {
+// Any part of a later match that no earlier span covers is still redacted on its own,
+// so "Acme" on your list can't leave "Widgets, Inc." of "Acme Widgets, Inc." showing.
+function merge(hits, text) {
   hits.sort((a, b) => a.tier - b.tier || b.score - a.score || (b.end - b.start) - (a.end - a.start))
+  // acc never holds overlapping spans, so it is kept sorted by position and searched by
+  // bisection: scanning all of it for every hit froze the page for 30 s on a 1 MB paste.
   const acc = []
+  const after = (pos) => { let lo = 0, hi = acc.length; while (lo < hi) { const m = (lo + hi) >> 1; if (acc[m].end > pos) hi = m; else lo = m + 1 } return lo }
+  const within = (s, e) => { const out = []; for (let i = after(s); i < acc.length && acc[i].start < e; i++) out.push(acc[i]); return out }
+  const add = (span) => acc.splice(after(span.start), 0, span)
   for (const h of hits) {
-    const ov = acc.filter((a) => h.start < a.end && h.end > a.start)
-    if (!ov.length) { acc.push({ ...h, sources: new Set([h.source]) }); continue }
+    const ov = within(h.start, h.end)
+    if (!ov.length) { add({ ...h, sources: new Set([h.source]) }); continue }
     for (const a of ov) if (a.cat === h.cat) a.sources.add(h.source)
     if (ov.length === 1 && ov[0].cat === h.cat) {
       const a = ov[0], s = Math.min(a.start, h.start), e = Math.max(a.end, h.end)
-      if (!acc.some((o) => o !== a && s < o.end && e > o.start)) { a.start = s; a.end = e }
+      if (within(s, e).length === 1) { a.start = s; a.end = e }
+    }
+    const gaps = []
+    let pos = h.start
+    for (const a of within(h.start, h.end)) {
+      if (a.start > pos) gaps.push([pos, a.start])
+      pos = Math.max(pos, a.end)
+    }
+    if (pos < h.end) gaps.push([pos, h.end])
+    for (let [s, e] of gaps) {
+      while (s < e && /[\s,;:]/.test(text[s])) s++
+      while (e > s && /[\s,;:]/.test(text[e - 1])) e--
+      if (/[\p{L}\p{N}]/u.test(text.slice(s, e))) add({ ...h, start: s, end: e, sources: new Set([h.source]) })
     }
   }
-  return acc.sort((a, b) => a.start - b.start)
+  return acc
 }
 
 function replacement(h, text, ids) {
@@ -364,7 +411,7 @@ function replacement(h, text, ids) {
 let last = { plain: '', rows: [] }
 function run() {
   const text = $('input').value
-  const hits = merge(collect(text))
+  const hits = merge(collect(text), text)
   const ids = { n: {}, map: new Map() }
   const counts = {}
   let plain = '', html = '', pos = 0
@@ -392,7 +439,7 @@ function run() {
   else if ($('hl').checked) out.innerHTML = html
   else out.textContent = plain
   for (const c of CATS) { const el = document.querySelector(`[data-n="${c.id}"]`); if (el) el.textContent = counts[c.id] || '' }
-  $('total').textContent = text ? `${hits.length} redaction${hits.length === 1 ? '' : 's'}` : ''
+  $('total').textContent = !text ? '' : CATS.some((c) => state.on[c.id]) ? `${hits.length} redaction${hits.length === 1 ? '' : 's'}` : 'Nothing selected under What to redact'
   updateNote()
   $('inCount').textContent = text ? `${text.length.toLocaleString()} chars` : ''
   $('mapCount').textContent = rows.length ? `(${rows.length})` : ''
@@ -479,14 +526,20 @@ $('input').addEventListener('input', onInput)
 for (const id of ['custom', 'allow']) $(id).addEventListener('input', run)
 $('hl').addEventListener('change', run)
 $('copy').addEventListener('click', async () => {
+  if (!$('input').value) return toast('Nothing to copy yet. Paste some text first.')
   const p = pending()
   if (p && !confirm(p + '\n\nCopy the current result anyway?')) return
   try { await navigator.clipboard.writeText(last.plain); toast('Copied redacted text') }
   catch { const r = document.createRange(); r.selectNodeContents($('output')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Press Ctrl+C to copy') }
 })
-$('download').addEventListener('click', () => { const p = pending(); if (!p || confirm(p + '\n\nDownload the current result anyway?')) download('redacted.txt', last.plain, 'text/plain') })
+$('download').addEventListener('click', () => {
+  if (!$('input').value) return toast('Nothing to download yet. Paste some text first.')
+  const p = pending()
+  if (!p || confirm(p + '\n\nDownload the current result anyway?')) download('redacted.txt', last.plain, 'text/plain')
+})
 $('dlMap').addEventListener('click', () => {
-  const csv = 'replacement,type,original,found_by\n' + last.rows.map((r) => r.map((c) => '"' + c.replace(/"/g, '""') + '"').join(',')).join('\n')
+  if (!last.rows.length) return toast('Nothing has been redacted yet')
+  const csv = 'replacement,type,original,found_by\n' + toCSV(last.rows)
   download('redaction-key.csv', csv, 'text/csv')
 })
 $('clear').addEventListener('click', () => { $('input').value = ''; onInput(); $('input').focus() })

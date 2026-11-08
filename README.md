@@ -36,7 +36,9 @@ span decoding to JavaScript.
 - `gliner2.js`, `worker.js`: the AI model in a Web Worker (download, checksum check, cache, inference).
 - `model/g2pii-v1/`: the exported model in 24 MB pieces, `manifest.json` lists them with a SHA-256.
 - `presidio.js`, `presidio-data.js`, `common-words.js` (wordfreq, CC BY-SA 4.0).
+- `csv.js`: CSV writer for the redaction key, with formula-injection guarding.
 - `cloud/`: the optional Modal GPU server (`modal_app.py`, `review.py`, set-up guide).
+- `tests/redact.test.mjs`: redaction checks for `app.js` in Node (`node --test tests/redact.test.mjs`).
 - `vendor/`: onnxruntime-web 1.30.0 (MIT) and @huggingface/tokenizers 0.2.0 (Apache-2.0).
 
 No build step: it's static files. Detection is never perfect; review the output before sharing.
